@@ -2,7 +2,11 @@ use std::fs::File;
 
 use anyhow::Result;
 
-use crate::{parsing::parse, tokenizing::tokenize, Token};
+use crate::{
+    parsing::{parse, Definition},
+    tokenizing::tokenize,
+    Token,
+};
 
 #[test]
 fn tokenize_simple() -> Result<()> {
@@ -43,6 +47,23 @@ fn parse_simple() -> Result<()> {
     ];
 
     let definitions = parse(tokens)?;
+    assert_eq!(1, definitions.len());
+    if let Definition::Protocol(name, definitions) = &definitions[0] {
+        assert_eq!("Simple", name);
+        assert_eq!(2, definitions.len());
+        if let Definition::Comment(comment) = &definitions[0] {
+            assert_eq!("GET /get", comment);
+        } else {
+            panic!("Expected comment");
+        }
+        if let Definition::Function(name) = &definitions[1] {
+            assert_eq!("get", name);
+        } else {
+            panic!("Expected function");
+        }
+    } else {
+        panic!("Invalid parsed structure")
+    }
     println!("Definitions: {definitions:?}");
 
     Ok(())

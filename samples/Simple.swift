@@ -1,4 +1,4 @@
-protocol SomeService {
+protocol Simple {
 	// GET /get
 	func get()
 }

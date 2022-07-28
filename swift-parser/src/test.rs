@@ -13,7 +13,7 @@ fn tokenize_simple() -> Result<()> {
     assert_eq!(
         vec![
             Token::Identifier("protocol".to_owned()),
-            Token::Identifier("SomeService".to_owned()),
+            Token::Identifier("Simple".to_owned()),
             Token::LeftBrace,
             Token::LineComment("GET /get".to_owned()),
             Token::Identifier("func".to_owned()),
@@ -32,7 +32,7 @@ fn tokenize_simple() -> Result<()> {
 fn parse_simple() -> Result<()> {
     let tokens = vec![
         Token::Identifier("protocol".to_owned()),
-        Token::Identifier("SomeService".to_owned()),
+        Token::Identifier("Simple".to_owned()),
         Token::LeftBrace,
         Token::LineComment("GET /get".to_owned()),
         Token::Identifier("func".to_owned()),

@@ -1,4 +1,4 @@
 protocol Simple {
 	// GET /get
-	func get()
+	func get() async throws
 }

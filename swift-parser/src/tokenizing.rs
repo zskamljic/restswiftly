@@ -37,7 +37,7 @@ pub(crate) fn tokenize(reader: impl Read) -> Result<Vec<Token>> {
             State::Ident => {
                 if char.is_ascii_alphanumeric() {
                     buffer.push(char)
-                } else if char == ' ' {
+                } else if char.is_ascii_whitespace() {
                     state = State::None;
                     tokens.push(Token::Identifier(buffer));
                     buffer = String::new();

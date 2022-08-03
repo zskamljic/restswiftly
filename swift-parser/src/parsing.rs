@@ -15,6 +15,44 @@ pub(crate) fn parse(tokens: Vec<Token>) -> Result<Vec<Definition>> {
                 Token::Identifier(value) => match value.as_ref() {
                     "protocol" => state = State::ProtocolStart,
                     "func" => state = State::FunctionStart,
+                    "async" => {
+                        if let Some(Definition::Function {
+                            name,
+                            is_async,
+                            is_throws,
+                        }) = definitions.pop()
+                        {
+                            if is_async {
+                                panic!("Repeat async token");
+                            }
+                            definitions.push(Definition::Function {
+                                name,
+                                is_async: true,
+                                is_throws,
+                            })
+                        } else {
+                            panic!("async must come after function")
+                        }
+                    }
+                    "throws" => {
+                        if let Some(Definition::Function {
+                            name,
+                            is_async,
+                            is_throws,
+                        }) = definitions.pop()
+                        {
+                            if is_throws {
+                                panic!("Repeat throws token");
+                            }
+                            definitions.push(Definition::Function {
+                                name,
+                                is_async,
+                                is_throws: true,
+                            })
+                        } else {
+                            panic!("throws must come after function")
+                        }
+                    }
                     value => panic!("Unknown identifier: {value}"),
                 },
                 Token::LineComment(value) => definitions.push(Definition::Comment(value)),
@@ -70,7 +108,11 @@ pub(crate) fn parse(tokens: Vec<Token>) -> Result<Vec<Definition>> {
                         if !definitions.is_empty() {
                             panic!("The definitions must be empty");
                         }
-                        previous_definitions.push(Definition::Function(name));
+                        previous_definitions.push(Definition::Function {
+                            name,
+                            is_async: false,
+                            is_throws: false,
+                        });
                         definitions = previous_definitions;
                     } else {
                         panic!("Unexpected type: {previous_state:?}");
@@ -103,7 +145,11 @@ enum ParseError {
 #[derive(Debug)]
 pub enum Definition {
     Comment(String),
-    Function(String),
+    Function {
+        name: String,
+        is_async: bool,
+        is_throws: bool,
+    },
     Protocol(String, Vec<Definition>),
 }
 

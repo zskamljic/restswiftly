@@ -5,6 +5,6 @@ use clap::Parser;
 pub struct Args {
     #[clap(short, long, value_parser)]
     pub file_name: String,
-    #[clap(short, long, value_parser)]
+    #[clap(short, long, value_parser, default_value = "out.swift")]
     pub output: String,
 }

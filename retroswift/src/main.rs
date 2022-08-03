@@ -58,7 +58,7 @@ fn generate_service(definition: &Definition) -> Result<()> {
     class.add_super(name);
     class.add_functions(generated_calls);
 
-    class.generate(&mut File::create("out.swift")?, &Options::new())
+    class.generate(&mut File::create("out.swift")?, &Options::default())
 }
 
 fn generate_call(
@@ -71,13 +71,13 @@ fn generate_call(
         panic!("Only async throws supported at this time");
     }
 
-    let mut failure = CodeBuilder::new();
+    let mut failure = CodeBuilder::default();
     failure.add_statement(r#"fatalError("Unable to fetch data")"#);
 
-    let mut success = CodeBuilder::new();
+    let mut success = CodeBuilder::default();
     success.add_statement("print(String(data: data, encoding: .utf8)!)");
 
-    let mut code = CodeBuilder::new();
+    let mut code = CodeBuilder::default();
     code.add_statement(&format!(
         r#"let url = URL("https://httpbin.org{}")!"#,
         definition.path

@@ -8,8 +8,7 @@ pub(crate) fn parse(tokens: Vec<Token>) -> Result<Vec<Definition>> {
 
     let mut definitions = vec![];
     let mut previous_states: Vec<(State, Vec<Definition>)> = vec![];
-    let mut iterator = tokens.into_iter();
-    while let Some(token) = iterator.next() {
+    for token in tokens.into_iter() {
         match state {
             State::None => match token {
                 Token::Identifier(value) => match value.as_ref() {

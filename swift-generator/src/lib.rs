@@ -7,7 +7,7 @@ const DEFAULT_INDENT: u8 = 4;
 macro_rules! write_indent {
     ($dst:expr, $indent:expr, $($arg:tt)*) => {
         {
-            $dst.write(" ".repeat($indent as usize).as_bytes())?;
+            $dst.write_all(" ".repeat($indent as usize).as_bytes())?;
             write!($dst, $($arg)*)
         }
     };
@@ -19,21 +19,18 @@ macro_rules! writeln_indent {
     };
     ($dst:expr, $indent:expr, $($arg:tt)*) => {
         {
-            $dst.write(" ".repeat($indent as usize).as_bytes())?;
+            $dst.write_all(" ".repeat($indent as usize).as_bytes())?;
             writeln!($dst, $($arg)*)
         }
     };
 }
 
+#[derive(Default)]
 pub struct CodeBuilder {
     lines: Vec<Code>,
 }
 
 impl CodeBuilder {
-    pub fn new() -> CodeBuilder {
-        CodeBuilder { lines: vec![] }
-    }
-
     pub fn add_control(
         &mut self,
         control_type: ControlType,
@@ -66,7 +63,7 @@ impl CodeBuilder {
                 Code::Line(line) => writeln_indent!(writer, indent, "{line}")?,
                 Code::ControlFlow { start, end, code } => {
                     writeln_indent!(writer, indent, "{start}")?;
-                    code.generate(writer, Options::new().indent(indent + DEFAULT_INDENT))?;
+                    code.generate(writer, Options::default().indent(indent + DEFAULT_INDENT))?;
                     writeln_indent!(writer, indent, "{end}")?;
                 }
             }
@@ -134,7 +131,7 @@ impl FunctionBuilder {
         writeln!(writer, "{{")?;
 
         for statement in self.code {
-            statement.generate(writer, Options::new().indent(indent + DEFAULT_INDENT))?;
+            statement.generate(writer, Options::default().indent(indent + DEFAULT_INDENT))?;
         }
 
         writeln_indent!(writer, indent, "}}")?;
@@ -182,7 +179,7 @@ impl ClassBuilder {
         writeln_indent!(writer, indent, " {{")?;
 
         for function in self.functions {
-            function.generate(writer, Options::new().indent(4))?;
+            function.generate(writer, Options::default().indent(4))?;
         }
 
         writeln_indent!(writer, indent, "}}")?;
@@ -191,15 +188,12 @@ impl ClassBuilder {
     }
 }
 
+#[derive(Default)]
 pub struct Options {
     indent: Option<u8>,
 }
 
 impl Options {
-    pub fn new() -> Options {
-        Options { indent: None }
-    }
-
     pub fn indent(&mut self, count: u8) -> &Self {
         self.indent = Some(count);
         self

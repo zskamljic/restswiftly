@@ -17,13 +17,13 @@ fn main() -> Result<()> {
     let definitions = swift_parser::read_definitions(input_file)?;
 
     for definition in definitions.into_iter() {
-        generate_service(&definition)?;
+        generate_service(&args.output, &definition)?;
     }
 
     Ok(())
 }
 
-fn generate_service(definition: &Definition) -> Result<()> {
+fn generate_service(out_file: &str, definition: &Definition) -> Result<()> {
     let (name, definitions) = match definition {
         Definition::Protocol(name, definitions) => (name, definitions),
         _ => return Ok(()),
@@ -59,7 +59,7 @@ fn generate_service(definition: &Definition) -> Result<()> {
     class.add_super(name);
     class.add_functions(generated_calls);
 
-    class.generate(&mut File::create("out.swift")?, &Options::default())
+    class.generate(&mut File::create(out_file)?, &Options::default())
 }
 
 fn generate_call(

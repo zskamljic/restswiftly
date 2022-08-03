@@ -3,7 +3,7 @@ use std::fs::File;
 use anyhow::Result;
 
 use crate::{
-    parsing::{parse, Definition},
+    parsing::{parse, Definition, PostfixModifier},
     tokenizing::tokenize,
     Token,
 };
@@ -97,15 +97,10 @@ fn parse_async_throws() -> Result<()> {
         } else {
             panic!("Expected comment");
         }
-        if let Definition::Function {
-            name,
-            is_async,
-            is_throws,
-        } = &definitions[1]
-        {
+        if let Definition::Function { name, modifiers } = &definitions[1] {
             assert_eq!("get", name);
-            assert!(is_async);
-            assert!(is_throws);
+            assert!(modifiers.contains(&PostfixModifier::Async));
+            assert!(modifiers.contains(&PostfixModifier::Throws));
         } else {
             panic!("Expected function");
         }

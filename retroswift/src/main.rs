@@ -3,7 +3,7 @@ use std::fs::File;
 
 use anyhow::Result;
 use swift_generator::{ClassBuilder, CodeBuilder, ControlType, FunctionBuilder, Options};
-use swift_parser::Definition;
+use swift_parser::{Definition, PostfixModifier};
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -38,17 +38,13 @@ fn generate_service(definition: &Definition) -> Result<()> {
                     panic!("Not handled");
                 }
             },
-            Definition::Function {
-                name,
-                is_async,
-                is_throws,
-            } => {
+            Definition::Function { name, modifiers } => {
                 let definition = match call_definition {
                     Some(definition) => definition,
                     None => panic!("No call definition for function"),
                 };
                 call_definition = None;
-                generated_calls.push(generate_call(name, *is_async, *is_throws, definition)?);
+                generated_calls.push(generate_call(name, modifiers, definition)?);
             }
             _ => panic!("Unsupported definition"),
         }
@@ -63,11 +59,11 @@ fn generate_service(definition: &Definition) -> Result<()> {
 
 fn generate_call(
     name: &str,
-    is_async: bool,
-    is_throws: bool,
+    modifiers: &[PostfixModifier],
     definition: CallDefinition,
 ) -> Result<FunctionBuilder> {
-    if !is_async || !is_throws {
+    if !modifiers.contains(&PostfixModifier::Async) || !modifiers.contains(&PostfixModifier::Throws)
+    {
         panic!("Only async throws supported at this time");
     }
 

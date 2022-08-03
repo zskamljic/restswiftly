@@ -7,14 +7,14 @@ pub(crate) fn parse(token: Vec<Token>) -> Result<Vec<Definition>> {
     Parser::new().parse(token)
 }
 
-pub struct Parser {
+struct Parser {
     state: State,
     definitions: Vec<Definition>,
     previous_states: Vec<(State, Vec<Definition>)>,
 }
 
 impl Parser {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Parser {
             state: State::None,
             definitions: vec![],

@@ -6,73 +6,101 @@ use utf8_chars::BufReadCharsExt;
 use crate::Token;
 
 pub(crate) fn tokenize(reader: impl Read) -> Result<Vec<Token>> {
-    let mut reader = BufReader::new(reader);
+    Tokenizer::new().tokenize(reader)
+}
 
-    let mut tokens = vec![];
-    let mut state = State::None;
-    let mut buffer = String::new();
-    for char in reader.chars() {
-        let char = char?;
-        match state {
-            State::None => {
-                if char.is_ascii_alphabetic() {
-                    state = State::Ident;
-                    buffer.push(char);
-                } else if char == '{' {
-                    tokens.push(Token::LeftBrace)
-                } else if char == '}' {
-                    tokens.push(Token::RightBrace);
-                } else if char.is_ascii_whitespace() {
-                    continue;
-                } else if char == '/' {
-                    state = State::CommentStart;
-                } else if char == '(' {
-                    tokens.push(Token::LeftParenthesis);
-                } else if char == ')' {
-                    tokens.push(Token::RightParenthesis);
-                } else {
-                    panic!("Unexpected character when reading token: {char}");
-                }
-            }
-            State::Ident => {
-                if char.is_ascii_alphanumeric() {
-                    buffer.push(char)
-                } else if char.is_ascii_whitespace() {
-                    state = State::None;
-                    tokens.push(Token::Identifier(buffer));
-                    buffer = String::new();
-                } else if char == '(' {
-                    state = State::None;
-                    tokens.push(Token::Identifier(buffer));
-                    tokens.push(Token::LeftParenthesis);
-                    buffer = String::new();
-                } else {
-                    panic!("Unexpected character when reading identifier: {char}");
-                }
-            }
-            State::CommentStart => {
-                if char == '/' {
-                    state = State::LineComment;
-                } else if char == '*' {
-                    state = State::BlockComment;
-                } else {
-                    panic!("Unexpected comment start: {char}");
-                }
-            }
-            State::LineComment => {
-                if char == '\n' {
-                    state = State::None;
-                    tokens.push(Token::LineComment(buffer.trim().to_string()));
-                    buffer = String::new();
-                } else {
-                    buffer.push(char);
-                }
-            }
-            State::BlockComment => todo!("Implement block comment logic"),
+struct Tokenizer {
+    state: State,
+    buffer: String,
+    tokens: Vec<Token>,
+}
+
+impl Tokenizer {
+    fn new() -> Tokenizer {
+        Tokenizer {
+            state: State::None,
+            buffer: String::new(),
+            tokens: vec![],
         }
     }
 
-    Ok(tokens)
+    fn tokenize(mut self, reader: impl Read) -> Result<Vec<Token>> {
+        let mut reader = BufReader::new(reader);
+
+        for char in reader.chars() {
+            let char = char?;
+            match self.state {
+                State::None => self.handle_unknown_token(char),
+                State::Ident => self.handle_identifier(char),
+                State::CommentStart => self.handle_comment_start(char),
+                State::LineComment => self.handle_line_comment(char),
+                State::BlockComment => todo!("Implement block comment logic"),
+            }
+        }
+
+        Ok(self.tokens)
+    }
+
+    fn handle_unknown_token(&mut self, char: char) {
+        if char.is_ascii_alphabetic() {
+            self.state = State::Ident;
+            self.buffer.push(char);
+        } else if char == '{' {
+            self.tokens.push(Token::LeftBrace)
+        } else if char == '}' {
+            self.tokens.push(Token::RightBrace);
+        } else if char.is_ascii_whitespace() {
+            return;
+        } else if char == '/' {
+            self.state = State::CommentStart;
+        } else if char == '(' {
+            self.tokens.push(Token::LeftParenthesis);
+        } else if char == ')' {
+            self.tokens.push(Token::RightParenthesis);
+        } else {
+            panic!("Unexpected character when reading token: {char}");
+        }
+    }
+
+    fn handle_identifier(&mut self, char: char) {
+        if char.is_ascii_alphanumeric() {
+            self.buffer.push(char)
+        } else if char.is_ascii_whitespace() {
+            self.state = State::None;
+            let mut identifier = String::new();
+            std::mem::swap(&mut self.buffer, &mut &mut identifier);
+            self.tokens.push(Token::Identifier(identifier));
+        } else if char == '(' {
+            self.state = State::None;
+            let mut identifier = String::new();
+            std::mem::swap(&mut self.buffer, &mut &mut identifier);
+            self.tokens.push(Token::Identifier(identifier));
+            self.tokens.push(Token::LeftParenthesis);
+        } else {
+            panic!("Unexpected character when reading identifier: {char}");
+        }
+    }
+
+    fn handle_comment_start(&mut self, char: char) {
+        if char == '/' {
+            self.state = State::LineComment;
+        } else if char == '*' {
+            self.state = State::BlockComment;
+        } else {
+            panic!("Unexpected comment start: {char}");
+        }
+    }
+
+    fn handle_line_comment(&mut self, char: char) {
+        if char == '\n' {
+            self.state = State::None;
+            self.tokens
+                .push(Token::LineComment(self.buffer.trim().to_string()));
+            self.buffer = String::new();
+        } else {
+            self.buffer.push(char);
+        }
+    }
 }
 
 enum State {

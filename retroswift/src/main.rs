@@ -1,14 +1,19 @@
-use core::panic;
 use std::fs::File;
 
 use anyhow::Result;
+use args::Args;
+use clap::Parser;
 use swift_generator::{ClassBuilder, CodeBuilder, ControlType, FunctionBuilder, Options};
 use swift_parser::{Definition, PostfixModifier};
+
+mod args;
 
 fn main() -> Result<()> {
     env_logger::init();
 
-    let input_file = File::open("samples/Simple.swift")?;
+    let args = Args::parse();
+
+    let input_file = File::open(&args.file_name)?;
     let definitions = swift_parser::read_definitions(input_file)?;
 
     for definition in definitions.into_iter() {

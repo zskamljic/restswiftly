@@ -180,6 +180,7 @@ impl ClassBuilder {
 
         for function in self.functions {
             function.generate(writer, Options::default().indent(4))?;
+            writeln!(writer)?;
         }
 
         writeln_indent!(writer, indent, "}}")?;

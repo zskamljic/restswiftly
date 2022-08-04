@@ -1,67 +1,67 @@
 class AllMethodsImpl: AllMethods {
+    private let baseUrl: String
+
+    init(baseUrl: String) {
+        var baseUrl = baseUrl
+        if baseUrl.hasSuffix("/") {
+            baseUrl = String(baseUrl.removeLast())
+        }
+        self.baseUrl = baseUrl
+    }
+
     func delete() async throws {
-        let url = URL("https://httpbin.org/delete")!
+        let url = URL(string: baseUrl + "/delete")!
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }
-        if let data = data {
-            print(String(data: data, encoding: .utf8)!)
-        }
+        print(String(data: data, encoding: .utf8)!)
     }
 
     func get() async throws {
-        let url = URL("https://httpbin.org/get")!
+        let url = URL(string: baseUrl + "/get")!
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }
-        if let data = data {
-            print(String(data: data, encoding: .utf8)!)
-        }
+        print(String(data: data, encoding: .utf8)!)
     }
 
     func patch() async throws {
-        let url = URL("https://httpbin.org/patch")!
+        let url = URL(string: baseUrl + "/patch")!
         var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }
-        if let data = data {
-            print(String(data: data, encoding: .utf8)!)
-        }
+        print(String(data: data, encoding: .utf8)!)
     }
 
     func post() async throws {
-        let url = URL("https://httpbin.org/post")!
+        let url = URL(string: baseUrl + "/post")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }
-        if let data = data {
-            print(String(data: data, encoding: .utf8)!)
-        }
+        print(String(data: data, encoding: .utf8)!)
     }
 
     func put() async throws {
-        let url = URL("https://httpbin.org/put")!
+        let url = URL(string: baseUrl + "/put")!
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }
-        if let data = data {
-            print(String(data: data, encoding: .utf8)!)
-        }
+        print(String(data: data, encoding: .utf8)!)
     }
 
 }

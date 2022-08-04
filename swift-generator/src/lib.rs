@@ -5,8 +5,14 @@ mod code;
 pub use code::CodeBuilder;
 pub use code::ControlType;
 
+mod field;
+pub use field::FieldBuilder;
+
 mod function;
 pub use function::FunctionBuilder;
+
+mod parameter;
+pub use parameter::ParameterBuilder;
 
 mod macros;
 
@@ -22,4 +28,11 @@ impl Options {
         self.indent = Some(count);
         self
     }
+}
+
+pub enum AccessModifier {
+    Public,
+    Internal,
+    FilePrivate,
+    Private,
 }

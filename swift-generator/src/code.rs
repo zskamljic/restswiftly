@@ -37,10 +37,10 @@ impl CodeBuilder {
         self
     }
 
-    pub fn generate(self, writer: &mut impl Write, options: &Options) -> Result<()> {
+    pub fn generate(&self, writer: &mut impl Write, options: &Options) -> Result<()> {
         let indent = options.indent.unwrap_or(0);
 
-        for line in self.lines.into_iter() {
+        for line in &self.lines {
             match line {
                 Code::Line(line) => writeln_indent!(writer, indent, "{line}")?,
                 Code::ControlFlow { start, end, code } => {

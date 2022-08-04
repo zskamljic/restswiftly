@@ -1,5 +1,8 @@
 #[macro_export]
 macro_rules! write_indent {
+    ($dst:expr, $indent:expr) => {
+        $dst.write_all(" ".repeat($indent as usize).as_bytes())
+    };
     ($dst:expr, $indent:expr, $($arg:tt)*) => {
         {
             $dst.write_all(" ".repeat($indent as usize).as_bytes())?;

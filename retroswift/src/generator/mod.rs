@@ -1,6 +1,9 @@
 use anyhow::Result;
 use std::mem;
-use swift_generator::{ClassBuilder, CodeBuilder, ControlType, FunctionBuilder};
+use swift_generator::{
+    AccessModifier, ClassBuilder, CodeBuilder, ControlType, FieldBuilder, FunctionBuilder,
+    ParameterBuilder,
+};
 use swift_parser::{Definition, PostfixModifier};
 
 #[cfg(test)]
@@ -33,6 +36,12 @@ impl Generator {
 
         let mut class = ClassBuilder::new(&(name.to_owned() + "Impl"));
         class.add_super(name);
+        class.add_field(FieldBuilder {
+            modifier: Some(AccessModifier::Private),
+            name: "baseUrl".into(),
+            field_type: "String".into(),
+        });
+        class.add_function(make_constructor());
         class.add_functions(mem::take(&mut self.calls));
 
         Ok(class)
@@ -97,7 +106,7 @@ impl Generator {
 
         let mut code = CodeBuilder::default();
         code.add_statement(&format!(
-            r#"let url = URL("https://httpbin.org{}")!"#,
+            r#"let url = URL(string: baseUrl + "{}")!"#,
             definition.path
         ))
         .add_statement("var request = URLRequest(url: url)")
@@ -115,9 +124,7 @@ impl Generator {
                     "return try decoder.decode({return_type}.self, from: data)"
                 ));
         } else {
-            let mut success = CodeBuilder::default();
-            success.add_statement("print(String(data: data, encoding: .utf8)!)");
-            code.add_control(ControlType::If, "let data = data", success);
+            code.add_statement("print(String(data: data, encoding: .utf8)!)");
         }
 
         let mut function = FunctionBuilder::new(name);
@@ -152,6 +159,27 @@ impl Generator {
         };
         Ok(CallDefinition { verb, path })
     }
+}
+
+fn make_constructor() -> FunctionBuilder {
+    let mut trim = CodeBuilder::default();
+    trim.add_statement("baseUrl = String(baseUrl.removeLast())");
+
+    let mut code = CodeBuilder::default();
+    code.add_statement("var baseUrl = baseUrl")
+        .add_control(ControlType::If, r#"baseUrl.hasSuffix("/")"#, trim)
+        .add_statement("self.baseUrl = baseUrl");
+
+    let mut constructor = FunctionBuilder::new("init");
+    constructor
+        .add_parameter(ParameterBuilder {
+            label: None,
+            name: "baseUrl".into(),
+            parameter_type: "String".into(),
+        })
+        .add_code(code);
+
+    constructor
 }
 
 struct CallDefinition {

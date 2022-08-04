@@ -4,6 +4,7 @@ use anyhow::Result;
 use parsing::parse;
 use tokenizing::tokenize;
 
+mod errors;
 mod parsing;
 #[cfg(test)]
 mod test;

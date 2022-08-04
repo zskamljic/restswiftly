@@ -6,6 +6,9 @@ use swift_generator::{
 };
 use swift_parser::{Definition, PostfixModifier};
 
+use self::errors::GeneratingError;
+
+mod errors;
 #[cfg(test)]
 mod test;
 
@@ -31,7 +34,7 @@ impl Generator {
             self.generate_definition(definition)?;
         }
         if !matches!(self.definition, None) {
-            panic!("There were tokens remaining");
+            return Err(GeneratingError::GeneralError("Not all tokens were handled".into()).into());
         }
 
         let mut class = ClassBuilder::new(&(name.to_owned() + "Impl"));
@@ -49,27 +52,41 @@ impl Generator {
 
     fn generate_definition(&mut self, definition: &Definition) -> Result<()> {
         match definition {
-            Definition::Comment(comment) => self.handle_call_definition(comment),
+            Definition::Comment(comment) => self.handle_call_definition(comment)?,
             Definition::Function {
                 name,
                 modifiers,
                 return_type,
             } => self.generate_function_definition(name, modifiers, return_type)?,
-            _ => panic!("Unsupported definition"),
+            value => {
+                return Err(GeneratingError::GeneralError(format!(
+                    "Unsupported definition: {value:?}"
+                ))
+                .into())
+            }
         }
         Ok(())
     }
 
-    fn handle_call_definition(&mut self, comment: &str) {
+    fn handle_call_definition(&mut self, comment: &str) -> Result<()> {
         let definition = mem::take(&mut self.definition);
         match (definition, Generator::parse_call_definition(comment)) {
             (None, Ok(value)) => self.definition = Some(value),
-            (Some(_), Ok(_)) => panic!("Repeat call definition"),
+            (Some(_), Ok(_)) => {
+                return Err(GeneratingError::GeneralError(
+                    "Call specifications must be single line".into(),
+                )
+                .into())
+            }
             (_, Err(err)) => {
                 log::warn!("Failed to get definition: {err}");
-                panic!("Not handled");
+                return Err(GeneratingError::GeneralError(format!(
+                    "Failed to get definition: {err}"
+                ))
+                .into());
             }
         }
+        Ok(())
     }
 
     fn generate_function_definition(
@@ -81,7 +98,11 @@ impl Generator {
         let definition = mem::take(&mut self.definition);
         let definition = match definition {
             Some(definition) => definition,
-            None => panic!("No call definition for function"),
+            None => {
+                return Err(
+                    GeneratingError::GeneralError("No call definition for function".into()).into(),
+                )
+            }
         };
         let call = self.generate_call(name, modifiers, return_type, definition)?;
         self.calls.push(call);
@@ -98,7 +119,10 @@ impl Generator {
         if !modifiers.contains(&PostfixModifier::Async)
             || !modifiers.contains(&PostfixModifier::Throws)
         {
-            panic!("Only async throws supported at this time");
+            return Err(GeneratingError::GeneralError(
+                "Only async throws supported at this time".into(),
+            )
+            .into());
         }
 
         let mut failure = CodeBuilder::default();
@@ -140,7 +164,11 @@ impl Generator {
         let mut parts = call.split_whitespace();
         let verb = match parts.next() {
             Some(verb) => verb.to_owned(),
-            None => panic!("Call verb not present"),
+            None => {
+                return Err(
+                    GeneratingError::GeneralError("Call verb was not present".into()).into(),
+                )
+            }
         };
         let allowed_verbs = vec![
             "DELETE".to_owned(),
@@ -150,12 +178,16 @@ impl Generator {
             "PUT".to_owned(),
         ];
         if !allowed_verbs.contains(&verb) {
-            panic!("Invalid request verb");
+            return Err(GeneratingError::GeneralError("Invalid request verb".into()).into());
         }
 
         let path = match parts.next() {
             Some(path) => path.to_owned(),
-            None => panic!("Call path not present"),
+            None => {
+                return Err(
+                    GeneratingError::GeneralError("Call path was not present".into()).into(),
+                )
+            }
         };
         Ok(CallDefinition { verb, path })
     }

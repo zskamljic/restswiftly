@@ -4,6 +4,7 @@ use std::mem;
 use anyhow::Result;
 use utf8_chars::BufReadCharsExt;
 
+use crate::errors::ParsingError;
 use crate::Token;
 
 const OPERATOR_TOKENS: &str = "->";
@@ -33,11 +34,13 @@ impl Tokenizer {
         for char in reader.chars() {
             let char = char?;
             match self.state {
-                State::None => self.handle_unknown_token(char),
-                State::Ident => self.handle_identifier(char),
-                State::CommentStart => self.handle_comment_start(char),
+                State::None => self.handle_unknown_token(char)?,
+                State::Ident => self.handle_identifier(char)?,
+                State::CommentStart => self.handle_comment_start(char)?,
                 State::LineComment => self.handle_line_comment(char),
-                State::BlockComment => todo!("Implement block comment logic"),
+                State::BlockComment => {
+                    return Err(ParsingError::FeatureNotSupported("block comments".into()).into())
+                }
                 State::Operator => self.handle_operator(char),
             }
         }
@@ -45,7 +48,7 @@ impl Tokenizer {
         Ok(self.tokens)
     }
 
-    fn handle_unknown_token(&mut self, char: char) {
+    fn handle_unknown_token(&mut self, char: char) -> Result<()> {
         if char.is_ascii_alphabetic() {
             self.state = State::Ident;
             self.buffer.push(char);
@@ -63,11 +66,12 @@ impl Tokenizer {
             self.state = State::Operator;
             self.buffer.push(char);
         } else if !char.is_ascii_whitespace() {
-            panic!("Unexpected character when reading token: {char}");
+            return Err(ParsingError::UnexpectedCharacter(char).into());
         }
+        Ok(())
     }
 
-    fn handle_identifier(&mut self, char: char) {
+    fn handle_identifier(&mut self, char: char) -> Result<()> {
         if char.is_ascii_alphanumeric() {
             self.buffer.push(char)
         } else if char.is_ascii_whitespace() {
@@ -80,18 +84,20 @@ impl Tokenizer {
             self.tokens.push(Token::Identifier(identifier));
             self.tokens.push(Token::LeftParenthesis);
         } else {
-            panic!("Unexpected character when reading identifier: {char}");
+            return Err(ParsingError::UnexpectedCharacter(char).into());
         }
+        Ok(())
     }
 
-    fn handle_comment_start(&mut self, char: char) {
+    fn handle_comment_start(&mut self, char: char) -> Result<()> {
         if char == '/' {
             self.state = State::LineComment;
         } else if char == '*' {
             self.state = State::BlockComment;
         } else {
-            panic!("Unexpected comment start: {char}");
+            return Err(ParsingError::UnexpectedCharacter(char).into());
         }
+        Ok(())
     }
 
     fn handle_line_comment(&mut self, char: char) {

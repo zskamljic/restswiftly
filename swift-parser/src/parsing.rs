@@ -1,9 +1,8 @@
 use std::mem;
 
-use crate::Token;
+use crate::{errors::ParsingError, Token};
 
 use anyhow::Result;
-use thiserror::Error;
 
 pub(crate) fn parse(token: Vec<Token>) -> Result<Vec<Definition>> {
     Parser::new().parse(token)
@@ -44,10 +43,14 @@ impl Parser {
         }
 
         if !self.previous_states.is_empty() {
-            panic!("Did not pop all states");
+            return Err(ParsingError::GeneralError("Did not handle all states".into()).into());
         }
         if !matches!(self.state, State::None) {
-            panic!("Did not finalize state: {:?}", self.state);
+            return Err(ParsingError::GeneralError(format!(
+                "Did not finalize state: {:?}",
+                self.state
+            ))
+            .into());
         }
 
         Ok(self.definitions)
@@ -64,7 +67,7 @@ impl Parser {
                 self.handle_block_close()?;
                 Ok(State::None)
             }
-            value => panic!("Unexpected token: {value:?}"),
+            value => Err(ParsingError::UnexpectedToken(value).into()),
         }
     }
 
@@ -72,7 +75,7 @@ impl Parser {
         match identifier {
             "protocol" => Ok(State::ProtocolStart),
             "func" => Ok(State::FunctionStart),
-            value => panic!("Unknown identifier: {value}"),
+            value => Err(ParsingError::UnexpectedIdentifier(value.into()).into()),
         }
     }
 
@@ -80,7 +83,7 @@ impl Parser {
         let (previous_state, mut previous_definitions) = self
             .previous_states
             .pop()
-            .ok_or(ParseError::InvalidScopeTarget)?;
+            .ok_or(ParsingError::InvalidScopeTarget)?;
         if let State::ProtocolWithName(name) = previous_state {
             let definitions = mem::take(&mut self.definitions);
             previous_definitions.push(Definition::Protocol(name, definitions));
@@ -94,7 +97,7 @@ impl Parser {
     fn handle_protocol_start(&mut self, token: Token) -> Result<State> {
         match token {
             Token::Identifier(value) => Ok(State::ProtocolWithName(value)),
-            value => panic!("Unexpected token: {value:?}"),
+            value => Err(ParsingError::UnexpectedToken(value).into()),
         }
     }
 
@@ -105,7 +108,7 @@ impl Parser {
                 .push((State::ProtocolWithName(name), current_definitions));
             Ok(State::None)
         } else {
-            panic!("Unexpected token: {token:?}");
+            Err(ParsingError::UnexpectedToken(token).into())
         }
     }
 
@@ -113,7 +116,7 @@ impl Parser {
         if let Token::Identifier(value) = token {
             Ok(State::FunctionWithName(value))
         } else {
-            panic!("Unexpected token: {token:?}");
+            Err(ParsingError::UnexpectedToken(token).into())
         }
     }
 
@@ -124,7 +127,7 @@ impl Parser {
                 .push((State::FunctionWithName(name), current_definitions));
             Ok(State::ParameterList)
         } else {
-            panic!("Unexpected token: {token:?}");
+            Err(ParsingError::UnexpectedToken(token).into())
         }
     }
 
@@ -134,18 +137,18 @@ impl Parser {
                 let (previous_state, previous_definitions) = self
                     .previous_states
                     .pop()
-                    .ok_or(ParseError::InvalidParameterTarget)?;
+                    .ok_or(ParsingError::InvalidParameterTarget)?;
                 if let State::FunctionWithName(name) = previous_state {
                     if !self.definitions.is_empty() {
-                        panic!("The definitions must be empty");
+                        panic!("The definitions must be empty"); // TODO: parameters
                     }
                     self.definitions = previous_definitions;
                     Ok(State::FunctionModifiers(name, vec![]))
                 } else {
-                    panic!("Unexpected type: {previous_state:?}");
+                    Err(ParsingError::UnexpectedState(format!("{previous_state:?}")).into())
                 }
             }
-            value => panic!("Unexpected token: {value:?}"),
+            value => Err(ParsingError::UnexpectedToken(value).into()),
         }
     }
 
@@ -161,7 +164,7 @@ impl Parser {
                     name,
                     add_modifier(modifiers, value)?,
                 )),
-                value => panic!("Unexpected identifier: {value}"),
+                value => Err(ParsingError::UnexpectedIdentifier(value.into()).into()),
             },
             Token::RightBrace => {
                 self.definitions.push(Definition::Function {
@@ -183,11 +186,17 @@ impl Parser {
             }
             Token::Operator(value) => {
                 if value != "->" {
-                    panic!("Unexpected operator: {value}");
+                    return Err(ParsingError::GeneralError(format!(
+                        "Unexpected operator: {value}"
+                    ))
+                    .into());
                 }
                 Ok(State::FunctionWithReturn(name, modifiers))
             }
-            value => panic!("Unexpected token scanning for modifiers: {value:?}"),
+            value => Err(ParsingError::GeneralError(format!(
+                "Unexpected token scanning for modifiers: {value:?}"
+            ))
+            .into()),
         }
     }
 
@@ -199,7 +208,11 @@ impl Parser {
     ) -> Result<State> {
         let return_type = match token {
             Token::Identifier(value) => value,
-            value => panic!("Illegal return type: {value:?}"),
+            value => {
+                return Err(
+                    ParsingError::GeneralError(format!("Illegal return type: {value:?}")).into(),
+                )
+            }
         };
 
         self.definitions.push(Definition::Function {
@@ -218,27 +231,25 @@ fn add_modifier(
     let modifier_type = match modifier {
         "async" => PostfixModifier::Async,
         "throws" => PostfixModifier::Throws,
-        value => panic!("Invalid postfix modifier: {value}"),
+        value => {
+            return Err(
+                ParsingError::GeneralError(format!("Invalid postfix modifier: {value}")).into(),
+            )
+        }
     };
     if modifiers.contains(&modifier_type) {
-        panic!("Modifier already present: {modifier}");
+        return Err(
+            ParsingError::GeneralError(format!("Modifier already present: {modifier}")).into(),
+        );
     }
     if matches!(modifier_type, PostfixModifier::Async)
         && modifiers.contains(&PostfixModifier::Throws)
     {
-        panic!("async must come before throws");
+        return Err(ParsingError::GeneralError("async must come before throws".into()).into());
     }
     modifiers.push(modifier_type);
 
     Ok(modifiers)
-}
-
-#[derive(Error, Debug)]
-enum ParseError {
-    #[error("Invalid token for parameters")]
-    InvalidParameterTarget,
-    #[error("Invalid scope target")]
-    InvalidScopeTarget,
 }
 
 #[derive(Debug)]
@@ -258,8 +269,9 @@ pub enum PostfixModifier {
     Throws,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 enum State {
+    #[default]
     None,
     ProtocolStart,
     ProtocolWithName(String),
@@ -268,10 +280,4 @@ enum State {
     ParameterList,
     FunctionModifiers(String, Vec<PostfixModifier>),
     FunctionWithReturn(String, Vec<PostfixModifier>),
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State::None
-    }
 }

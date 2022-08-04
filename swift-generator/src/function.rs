@@ -9,6 +9,7 @@ pub struct FunctionBuilder {
     code: Vec<CodeBuilder>,
     is_async: bool,
     is_throws: bool,
+    return_type: Option<String>,
 }
 
 impl FunctionBuilder {
@@ -18,6 +19,7 @@ impl FunctionBuilder {
             code: vec![],
             is_async: false,
             is_throws: false,
+            return_type: None,
         }
     }
 
@@ -36,6 +38,11 @@ impl FunctionBuilder {
         self
     }
 
+    pub fn set_return_type(&mut self, return_type: &str) -> &mut Self {
+        self.return_type = Some(return_type.into());
+        self
+    }
+
     pub fn generate(self, writer: &mut impl Write, options: &Options) -> Result<()> {
         let indent = options.indent.unwrap_or(0);
 
@@ -45,6 +52,9 @@ impl FunctionBuilder {
         }
         if self.is_throws {
             write!(writer, "throws ")?;
+        }
+        if let Some(return_type) = self.return_type {
+            write!(writer, "-> {return_type} ")?;
         }
         writeln!(writer, "{{")?;
 

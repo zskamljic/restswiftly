@@ -41,9 +41,11 @@ impl Generator {
     fn generate_definition(&mut self, definition: &Definition) -> Result<()> {
         match definition {
             Definition::Comment(comment) => self.handle_call_definition(comment),
-            Definition::Function { name, modifiers } => {
-                self.generate_function_definition(name, modifiers)?
-            }
+            Definition::Function {
+                name,
+                modifiers,
+                return_type,
+            } => self.generate_function_definition(name, modifiers, return_type)?,
             _ => panic!("Unsupported definition"),
         }
         Ok(())
@@ -65,13 +67,14 @@ impl Generator {
         &mut self,
         name: &str,
         modifiers: &[PostfixModifier],
+        return_type: &Option<String>,
     ) -> Result<()> {
         let definition = mem::take(&mut self.definition);
         let definition = match definition {
             Some(definition) => definition,
             None => panic!("No call definition for function"),
         };
-        let call = self.generate_call(name, modifiers, definition)?;
+        let call = self.generate_call(name, modifiers, return_type, definition)?;
         self.calls.push(call);
         Ok(())
     }
@@ -80,6 +83,7 @@ impl Generator {
         &mut self,
         name: &str,
         modifiers: &[PostfixModifier],
+        return_type: &Option<String>,
         definition: CallDefinition,
     ) -> Result<FunctionBuilder> {
         if !modifiers.contains(&PostfixModifier::Async)
@@ -90,9 +94,6 @@ impl Generator {
 
         let mut failure = CodeBuilder::default();
         failure.add_statement(r#"fatalError("Unable to fetch data")"#);
-
-        let mut success = CodeBuilder::default();
-        success.add_statement("print(String(data: data, encoding: .utf8)!)");
 
         let mut code = CodeBuilder::default();
         code.add_statement(&format!(
@@ -106,11 +107,25 @@ impl Generator {
             ControlType::Guard,
             "(response as? HTTPURLResponse)?.statusCode == 200",
             failure,
-        )
-        .add_control(ControlType::If, "let data = data", success);
+        );
+
+        if let Some(return_type) = return_type {
+            code.add_statement("let decoder = JSONDecoder()")
+                .add_statement(&format!(
+                    "return try decoder.decode({return_type}.self, from: data)"
+                ));
+        } else {
+            let mut success = CodeBuilder::default();
+            success.add_statement("print(String(data: data, encoding: .utf8)!)");
+            code.add_control(ControlType::If, "let data = data", success);
+        }
 
         let mut function = FunctionBuilder::new(name);
-        function.set_async(true).set_throws(true).add_code(code);
+        function.set_async(true).set_throws(true);
+        if let Some(return_type) = return_type {
+            function.set_return_type(return_type);
+        }
+        function.add_code(code);
         Ok(function)
     }
 

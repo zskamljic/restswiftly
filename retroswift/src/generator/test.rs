@@ -11,7 +11,7 @@ use crate::generator::Generator;
 
 #[test]
 fn test_generated_files() -> Result<()> {
-    for file in vec!["Simple", "AllMethods"].into_iter() {
+    for file in vec!["Simple", "AllMethods", "Return"].into_iter() {
         test_generated_file(file)?;
         println!("File correct: {file}");
     }

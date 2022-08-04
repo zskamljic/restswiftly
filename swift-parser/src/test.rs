@@ -35,6 +35,34 @@ fn tokenize_simple() -> Result<()> {
 }
 
 #[test]
+fn tokenize_returning() -> Result<()> {
+    let input = File::open("../samples/Return.swift")?;
+
+    let tokens = tokenize(input)?;
+
+    assert_eq!(
+        vec![
+            Token::Identifier("protocol".to_owned()),
+            Token::Identifier("Return".to_owned()),
+            Token::LeftBrace,
+            Token::LineComment("GET /get".to_owned()),
+            Token::Identifier("func".to_owned()),
+            Token::Identifier("get".to_owned()),
+            Token::LeftParenthesis,
+            Token::RightParenthesis,
+            Token::Identifier("async".to_owned()),
+            Token::Identifier("throws".to_owned()),
+            Token::Operator("->".to_owned()),
+            Token::Identifier("Hello".to_owned()),
+            Token::RightBrace,
+        ],
+        tokens,
+    );
+
+    Ok(())
+}
+
+#[test]
 fn parse_simple() -> Result<()> {
     let tokens = vec![
         Token::Identifier("protocol".to_owned()),
@@ -96,10 +124,68 @@ fn parse_async_throws() -> Result<()> {
         } else {
             panic!("Expected comment");
         }
-        if let Definition::Function { name, modifiers } = &definitions[1] {
+        if let Definition::Function {
+            name,
+            modifiers,
+            return_type,
+        } = &definitions[1]
+        {
             assert_eq!("get", name);
             assert!(modifiers.contains(&PostfixModifier::Async));
             assert!(modifiers.contains(&PostfixModifier::Throws));
+            assert!(matches!(return_type, None));
+        } else {
+            panic!("Expected function");
+        }
+    } else {
+        panic!("Invalid parsed structure")
+    }
+
+    Ok(())
+}
+
+#[test]
+fn parse_returns() -> Result<()> {
+    let tokens = vec![
+        Token::Identifier("protocol".to_owned()),
+        Token::Identifier("Return".to_owned()),
+        Token::LeftBrace,
+        Token::LineComment("GET /get".to_owned()),
+        Token::Identifier("func".to_owned()),
+        Token::Identifier("get".to_owned()),
+        Token::LeftParenthesis,
+        Token::RightParenthesis,
+        Token::Identifier("async".to_owned()),
+        Token::Identifier("throws".to_owned()),
+        Token::Operator("->".to_owned()),
+        Token::Identifier("Hello".to_owned()),
+        Token::RightBrace,
+    ];
+
+    let definitions = parse(tokens)?;
+    assert_eq!(1, definitions.len());
+    if let Definition::Protocol(name, definitions) = &definitions[0] {
+        assert_eq!("Return", name);
+        assert_eq!(2, definitions.len());
+        if let Definition::Comment(comment) = &definitions[0] {
+            assert_eq!("GET /get", comment);
+        } else {
+            panic!("Expected comment");
+        }
+        if let Definition::Function {
+            name,
+            modifiers,
+            return_type,
+        } = &definitions[1]
+        {
+            assert_eq!("get", name);
+            assert!(modifiers.contains(&PostfixModifier::Async));
+            assert!(modifiers.contains(&PostfixModifier::Throws));
+            if let Some(value) = return_type {
+                assert_eq!("Hello", value);
+            } else {
+                panic!("Wanted return type");
+            }
         } else {
             panic!("Expected function");
         }

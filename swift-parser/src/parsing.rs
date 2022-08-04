@@ -26,17 +26,20 @@ impl Parser {
 
     fn parse(mut self, tokens: Vec<Token>) -> Result<Vec<Definition>> {
         for token in tokens.into_iter() {
-            self.state = match self.state {
+            let state = mem::take(&mut self.state);
+            self.state = match state {
                 State::None => self.handle_any_identifier(token)?,
                 State::ProtocolStart => self.handle_protocol_start(token)?,
-                State::ProtocolWithName(ref name) => {
-                    self.handle_protocol_content(token, name.to_string())?
-                }
+                State::ProtocolWithName(name) => self.handle_protocol_content(token, name)?,
                 State::FunctionStart => self.handle_function_start(token)?,
-                State::FunctionWithName(ref name) => {
-                    self.handle_parameter_name(token, name.to_string())?
-                }
+                State::FunctionWithName(name) => self.handle_parameter_name(token, name)?,
                 State::ParameterList => self.handle_parameter_list(token)?,
+                State::FunctionModifiers(name, modifiers) => {
+                    self.handle_function_modifiers(token, name, modifiers)?
+                }
+                State::FunctionWithReturn(name, modifiers) => {
+                    self.handle_function_return(token, name, modifiers)?
+                }
             }
         }
 
@@ -69,39 +72,8 @@ impl Parser {
         match identifier {
             "protocol" => Ok(State::ProtocolStart),
             "func" => Ok(State::FunctionStart),
-            "async" | "throws" => {
-                self.update_function_modifier(identifier);
-                Ok(State::None)
-            }
             value => panic!("Unknown identifier: {value}"),
         }
-    }
-
-    fn update_function_modifier(&mut self, modifier: &str) {
-        let (name, mut modifiers) = match self.definitions.pop() {
-            Some(Definition::Function { name, modifiers }) => (name, modifiers),
-            _ => panic!("expected modifier after function"),
-        };
-
-        let modifier_type = match modifier {
-            "async" => PostfixModifier::Async,
-            "throws" => PostfixModifier::Throws,
-            value => panic!("Unknown postfix modifier: {value}"),
-        };
-
-        if matches!(modifier_type, PostfixModifier::Async)
-            && modifiers.contains(&PostfixModifier::Throws)
-        {
-            panic!("async must come before throws")
-        }
-
-        if modifiers.contains(&modifier_type) {
-            panic!("Repeat {modifier} token");
-        }
-
-        modifiers.push(modifier_type);
-        self.definitions
-            .push(Definition::Function { name, modifiers });
     }
 
     fn handle_block_close(&mut self) -> Result<()> {
@@ -159,7 +131,7 @@ impl Parser {
     fn handle_parameter_list(&mut self, token: Token) -> Result<State> {
         match token {
             Token::RightParenthesis => {
-                let (previous_state, mut previous_definitions) = self
+                let (previous_state, previous_definitions) = self
                     .previous_states
                     .pop()
                     .ok_or(ParseError::InvalidParameterTarget)?;
@@ -167,19 +139,98 @@ impl Parser {
                     if !self.definitions.is_empty() {
                         panic!("The definitions must be empty");
                     }
-                    previous_definitions.push(Definition::Function {
-                        name,
-                        modifiers: vec![],
-                    });
                     self.definitions = previous_definitions;
+                    Ok(State::FunctionModifiers(name, vec![]))
                 } else {
                     panic!("Unexpected type: {previous_state:?}");
                 }
-                Ok(State::None)
             }
             value => panic!("Unexpected token: {value:?}"),
         }
     }
+
+    fn handle_function_modifiers(
+        &mut self,
+        token: Token,
+        name: String,
+        modifiers: Vec<PostfixModifier>,
+    ) -> Result<State> {
+        match token {
+            Token::Identifier(ref value) => match value.as_str() {
+                "async" | "throws" => Ok(State::FunctionModifiers(
+                    name,
+                    add_modifier(modifiers, &value)?,
+                )),
+                value => panic!("Unexpected identifier: {value}"),
+            },
+            Token::RightBrace => {
+                self.definitions.push(Definition::Function {
+                    name,
+                    modifiers,
+                    return_type: None,
+                });
+                self.handle_block_close()?;
+                Ok(State::None)
+            }
+            Token::LineComment(comment) => {
+                self.definitions.push(Definition::Function {
+                    name,
+                    modifiers,
+                    return_type: None,
+                });
+                self.definitions.push(Definition::Comment(comment));
+                Ok(State::None)
+            }
+            Token::Operator(value) => {
+                if value != "->" {
+                    panic!("Unexpected operator: {value}");
+                }
+                Ok(State::FunctionWithReturn(name, modifiers))
+            }
+            value => panic!("Unexpected token scanning for modifiers: {value:?}"),
+        }
+    }
+
+    fn handle_function_return(
+        &mut self,
+        token: Token,
+        name: String,
+        modifiers: Vec<PostfixModifier>,
+    ) -> Result<State> {
+        let return_type = match token {
+            Token::Identifier(value) => value,
+            value => panic!("Illegal return type: {value:?}"),
+        };
+
+        self.definitions.push(Definition::Function {
+            name,
+            modifiers,
+            return_type: Some(return_type),
+        });
+        Ok(State::None)
+    }
+}
+
+fn add_modifier(
+    mut modifiers: Vec<PostfixModifier>,
+    modifier: &str,
+) -> Result<Vec<PostfixModifier>> {
+    let modifier_type = match modifier {
+        "async" => PostfixModifier::Async,
+        "throws" => PostfixModifier::Throws,
+        value => panic!("Invalid postfix modifier: {value}"),
+    };
+    if modifiers.contains(&modifier_type) {
+        panic!("Modifier already present: {modifier}");
+    }
+    if matches!(modifier_type, PostfixModifier::Async)
+        && modifiers.contains(&PostfixModifier::Throws)
+    {
+        panic!("async must come before throws");
+    }
+    modifiers.push(modifier_type);
+
+    Ok(modifiers)
 }
 
 #[derive(Error, Debug)]
@@ -196,6 +247,7 @@ pub enum Definition {
     Function {
         name: String,
         modifiers: Vec<PostfixModifier>,
+        return_type: Option<String>,
     },
     Protocol(String, Vec<Definition>),
 }
@@ -214,4 +266,12 @@ enum State {
     FunctionStart,
     FunctionWithName(String),
     ParameterList,
+    FunctionModifiers(String, Vec<PostfixModifier>),
+    FunctionWithReturn(String, Vec<PostfixModifier>),
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State::None
+    }
 }

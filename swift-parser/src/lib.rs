@@ -25,4 +25,5 @@ enum Token {
     RightBrace,
     LeftParenthesis,
     RightParenthesis,
+    Operator(String),
 }

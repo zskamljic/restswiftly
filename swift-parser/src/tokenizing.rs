@@ -6,6 +6,8 @@ use utf8_chars::BufReadCharsExt;
 
 use crate::Token;
 
+const OPERATOR_TOKENS: &str = "->";
+
 pub(crate) fn tokenize(reader: impl Read) -> Result<Vec<Token>> {
     Tokenizer::new().tokenize(reader)
 }
@@ -36,6 +38,7 @@ impl Tokenizer {
                 State::CommentStart => self.handle_comment_start(char),
                 State::LineComment => self.handle_line_comment(char),
                 State::BlockComment => todo!("Implement block comment logic"),
+                State::Operator => self.handle_operator(char),
             }
         }
 
@@ -56,6 +59,9 @@ impl Tokenizer {
             self.tokens.push(Token::LeftParenthesis);
         } else if char == ')' {
             self.tokens.push(Token::RightParenthesis);
+        } else if OPERATOR_TOKENS.contains(char) {
+            self.state = State::Operator;
+            self.buffer.push(char);
         } else if !char.is_ascii_whitespace() {
             panic!("Unexpected character when reading token: {char}");
         }
@@ -91,11 +97,23 @@ impl Tokenizer {
     fn handle_line_comment(&mut self, char: char) {
         if char == '\n' {
             self.state = State::None;
-            self.tokens
-                .push(Token::LineComment(self.buffer.trim().to_string()));
-            self.buffer = String::new();
+            self.tokens.push(Token::LineComment(
+                mem::take(&mut self.buffer).trim().to_string(),
+            ));
         } else {
             self.buffer.push(char);
+        }
+    }
+
+    fn handle_operator(&mut self, char: char) {
+        if OPERATOR_TOKENS.contains(char) {
+            self.buffer.push(char);
+        } else if char.is_ascii_whitespace() {
+            self.tokens
+                .push(Token::Operator(mem::take(&mut self.buffer)));
+            self.state = State::None;
+        } else {
+            panic!("Unexpected character when reading an operator");
         }
     }
 }
@@ -106,4 +124,5 @@ enum State {
     CommentStart,
     LineComment,
     BlockComment,
+    Operator,
 }

@@ -111,3 +111,23 @@ fn parse_async_throws() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+#[should_panic]
+fn parse_async_throws_invalid_order() {
+    let tokens = vec![
+        Token::Identifier("protocol".to_owned()),
+        Token::Identifier("Simple".to_owned()),
+        Token::LeftBrace,
+        Token::LineComment("GET /get".to_owned()),
+        Token::Identifier("func".to_owned()),
+        Token::Identifier("get".to_owned()),
+        Token::LeftParenthesis,
+        Token::RightParenthesis,
+        Token::Identifier("throws".to_owned()),
+        Token::Identifier("async".to_owned()),
+        Token::RightBrace,
+    ];
+
+    parse(tokens).unwrap();
+}

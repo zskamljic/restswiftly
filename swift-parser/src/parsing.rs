@@ -81,16 +81,23 @@ impl Parser {
             _ => panic!("expected modifier after function"),
         };
 
-        let modifier = match modifier {
+        let modifier_type = match modifier {
             "async" => PostfixModifier::Async,
             "throws" => PostfixModifier::Throws,
             value => panic!("Unknown postfix modifier: {value}"),
         };
 
-        if modifiers.contains(&modifier) {
-            panic!("Repeat async token");
+        if matches!(modifier_type, PostfixModifier::Async)
+            && modifiers.contains(&PostfixModifier::Throws)
+        {
+            panic!("async must come before throws")
         }
-        modifiers.push(modifier);
+
+        if modifiers.contains(&modifier_type) {
+            panic!("Repeat {modifier} token");
+        }
+
+        modifiers.push(modifier_type);
         self.definitions
             .push(Definition::Function { name, modifiers });
     }

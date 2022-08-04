@@ -49,15 +49,13 @@ impl Tokenizer {
             self.tokens.push(Token::LeftBrace)
         } else if char == '}' {
             self.tokens.push(Token::RightBrace);
-        } else if char.is_ascii_whitespace() {
-            return;
         } else if char == '/' {
             self.state = State::CommentStart;
         } else if char == '(' {
             self.tokens.push(Token::LeftParenthesis);
         } else if char == ')' {
             self.tokens.push(Token::RightParenthesis);
-        } else {
+        } else if !char.is_ascii_whitespace() {
             panic!("Unexpected character when reading token: {char}");
         }
     }
@@ -68,12 +66,12 @@ impl Tokenizer {
         } else if char.is_ascii_whitespace() {
             self.state = State::None;
             let mut identifier = String::new();
-            std::mem::swap(&mut self.buffer, &mut &mut identifier);
+            std::mem::swap(&mut self.buffer, &mut identifier);
             self.tokens.push(Token::Identifier(identifier));
         } else if char == '(' {
             self.state = State::None;
             let mut identifier = String::new();
-            std::mem::swap(&mut self.buffer, &mut &mut identifier);
+            std::mem::swap(&mut self.buffer, &mut identifier);
             self.tokens.push(Token::Identifier(identifier));
             self.tokens.push(Token::LeftParenthesis);
         } else {

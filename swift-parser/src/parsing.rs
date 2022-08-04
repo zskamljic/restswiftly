@@ -159,7 +159,7 @@ impl Parser {
             Token::Identifier(ref value) => match value.as_str() {
                 "async" | "throws" => Ok(State::FunctionModifiers(
                     name,
-                    add_modifier(modifiers, &value)?,
+                    add_modifier(modifiers, value)?,
                 )),
                 value => panic!("Unexpected identifier: {value}"),
             },

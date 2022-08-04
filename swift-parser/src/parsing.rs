@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::Token;
 
 use anyhow::Result;
@@ -108,8 +110,7 @@ impl Parser {
             .pop()
             .ok_or(ParseError::InvalidScopeTarget)?;
         if let State::ProtocolWithName(name) = previous_state {
-            let mut definitions = vec![];
-            std::mem::swap(&mut self.definitions, &mut definitions);
+            let definitions = mem::take(&mut self.definitions);
             previous_definitions.push(Definition::Protocol(name, definitions));
             self.definitions = previous_definitions;
         } else {
@@ -127,8 +128,7 @@ impl Parser {
 
     fn handle_protocol_content(&mut self, token: Token, name: String) -> Result<State> {
         if matches!(token, Token::LeftBrace) {
-            let mut current_definitions = vec![];
-            std::mem::swap(&mut self.definitions, &mut current_definitions);
+            let current_definitions = mem::take(&mut self.definitions);
             self.previous_states
                 .push((State::ProtocolWithName(name), current_definitions));
             Ok(State::None)
@@ -147,8 +147,7 @@ impl Parser {
 
     fn handle_parameter_name(&mut self, token: Token, name: String) -> Result<State> {
         if matches!(token, Token::LeftParenthesis) {
-            let mut current_definitions = vec![];
-            std::mem::swap(&mut self.definitions, &mut current_definitions);
+            let current_definitions = mem::take(&mut self.definitions);
             self.previous_states
                 .push((State::FunctionWithName(name), current_definitions));
             Ok(State::ParameterList)

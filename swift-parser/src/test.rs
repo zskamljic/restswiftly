@@ -66,7 +66,6 @@ fn parse_simple() -> Result<()> {
     } else {
         panic!("Invalid parsed structure")
     }
-    println!("Definitions: {definitions:?}");
 
     Ok(())
 }
@@ -107,7 +106,6 @@ fn parse_async_throws() -> Result<()> {
     } else {
         panic!("Invalid parsed structure")
     }
-    println!("Definitions: {definitions:?}");
 
     Ok(())
 }

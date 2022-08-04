@@ -1,4 +1,5 @@
 use std::io::{BufReader, Read};
+use std::mem;
 
 use anyhow::Result;
 use utf8_chars::BufReadCharsExt;
@@ -65,13 +66,11 @@ impl Tokenizer {
             self.buffer.push(char)
         } else if char.is_ascii_whitespace() {
             self.state = State::None;
-            let mut identifier = String::new();
-            std::mem::swap(&mut self.buffer, &mut identifier);
+            let identifier = mem::take(&mut self.buffer);
             self.tokens.push(Token::Identifier(identifier));
         } else if char == '(' {
             self.state = State::None;
-            let mut identifier = String::new();
-            std::mem::swap(&mut self.buffer, &mut identifier);
+            let identifier = mem::take(&mut self.buffer);
             self.tokens.push(Token::Identifier(identifier));
             self.tokens.push(Token::LeftParenthesis);
         } else {

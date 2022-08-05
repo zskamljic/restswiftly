@@ -8,6 +8,8 @@ pub(crate) fn parse(token: Vec<Token>) -> Result<Vec<Definition>> {
     Parser::new().parse(token)
 }
 
+type Parameter = ();
+
 struct Parser {
     state: State,
     definitions: Vec<Definition>,
@@ -33,11 +35,11 @@ impl Parser {
                 State::FunctionStart => self.handle_function_start(token)?,
                 State::FunctionWithName(name) => self.handle_parameter_name(token, name)?,
                 State::ParameterList => self.handle_parameter_list(token)?,
-                State::FunctionModifiers(name, modifiers) => {
-                    self.handle_function_modifiers(token, name, modifiers)?
+                State::FunctionModifiers(name, parameters, modifiers) => {
+                    self.handle_function_modifiers(token, name, parameters, modifiers)?
                 }
-                State::FunctionWithReturn(name, modifiers) => {
-                    self.handle_function_return(token, name, modifiers)?
+                State::FunctionWithReturn(name, parameters, modifiers) => {
+                    self.handle_function_return(token, parameters, name, modifiers)?
                 }
             }
         }
@@ -143,7 +145,7 @@ impl Parser {
                         panic!("The definitions must be empty"); // TODO: parameters
                     }
                     self.definitions = previous_definitions;
-                    Ok(State::FunctionModifiers(name, vec![]))
+                    Ok(State::FunctionModifiers(name, vec![], vec![]))
                 } else {
                     Err(ParsingError::UnexpectedState(format!("{previous_state:?}")).into())
                 }
@@ -156,12 +158,14 @@ impl Parser {
         &mut self,
         token: Token,
         name: String,
+        parameters: Vec<Parameter>,
         modifiers: Vec<PostfixModifier>,
     ) -> Result<State> {
         match token {
             Token::Identifier(ref value) => match value.as_str() {
                 "async" | "throws" => Ok(State::FunctionModifiers(
                     name,
+                    parameters,
                     add_modifier(modifiers, value)?,
                 )),
                 value => Err(ParsingError::UnexpectedIdentifier(value.into()).into()),
@@ -169,6 +173,7 @@ impl Parser {
             Token::RightBrace => {
                 self.definitions.push(Definition::Function {
                     name,
+                    parameters: vec![],
                     modifiers,
                     return_type: None,
                 });
@@ -178,6 +183,7 @@ impl Parser {
             Token::LineComment(comment) => {
                 self.definitions.push(Definition::Function {
                     name,
+                    parameters: vec![],
                     modifiers,
                     return_type: None,
                 });
@@ -191,7 +197,7 @@ impl Parser {
                     ))
                     .into());
                 }
-                Ok(State::FunctionWithReturn(name, modifiers))
+                Ok(State::FunctionWithReturn(name, parameters, modifiers))
             }
             value => Err(ParsingError::GeneralError(format!(
                 "Unexpected token scanning for modifiers: {value:?}"
@@ -203,6 +209,7 @@ impl Parser {
     fn handle_function_return(
         &mut self,
         token: Token,
+        parameters: Vec<()>,
         name: String,
         modifiers: Vec<PostfixModifier>,
     ) -> Result<State> {
@@ -217,6 +224,7 @@ impl Parser {
 
         self.definitions.push(Definition::Function {
             name,
+            parameters,
             modifiers,
             return_type: Some(return_type),
         });
@@ -257,6 +265,7 @@ pub enum Definition {
     Comment(String),
     Function {
         name: String,
+        parameters: Vec<()>,
         modifiers: Vec<PostfixModifier>,
         return_type: Option<String>,
     },
@@ -278,6 +287,6 @@ enum State {
     FunctionStart,
     FunctionWithName(String),
     ParameterList,
-    FunctionModifiers(String, Vec<PostfixModifier>),
-    FunctionWithReturn(String, Vec<PostfixModifier>),
+    FunctionModifiers(String, Vec<Parameter>, Vec<PostfixModifier>),
+    FunctionWithReturn(String, Vec<Parameter>, Vec<PostfixModifier>),
 }

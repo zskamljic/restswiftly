@@ -27,4 +27,5 @@ enum Token {
     LeftParenthesis,
     RightParenthesis,
     Operator(String),
+    Colon,
 }

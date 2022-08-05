@@ -55,9 +55,10 @@ impl Generator {
             Definition::Comment(comment) => self.handle_call_definition(comment)?,
             Definition::Function {
                 name,
+                parameters,
                 modifiers,
                 return_type,
-            } => self.generate_function_definition(name, modifiers, return_type)?,
+            } => self.generate_function_definition(name, parameters, modifiers, return_type)?,
             value => {
                 return Err(GeneratingError::GeneralError(format!(
                     "Unsupported definition: {value:?}"
@@ -92,6 +93,7 @@ impl Generator {
     fn generate_function_definition(
         &mut self,
         name: &str,
+        parameters: &[()],
         modifiers: &[PostfixModifier],
         return_type: &Option<String>,
     ) -> Result<()> {

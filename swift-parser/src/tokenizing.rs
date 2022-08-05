@@ -83,6 +83,16 @@ impl Tokenizer {
             let identifier = mem::take(&mut self.buffer);
             self.tokens.push(Token::Identifier(identifier));
             self.tokens.push(Token::LeftParenthesis);
+        } else if char == ')' {
+            self.state = State::None;
+            let identifier = mem::take(&mut self.buffer);
+            self.tokens.push(Token::Identifier(identifier));
+            self.tokens.push(Token::RightParenthesis);
+        } else if char == ':' {
+            self.state = State::None;
+            let identifier = mem::take(&mut self.buffer);
+            self.tokens.push(Token::Identifier(identifier));
+            self.tokens.push(Token::Colon);
         } else {
             return Err(ParsingError::UnexpectedCharacter(char).into());
         }

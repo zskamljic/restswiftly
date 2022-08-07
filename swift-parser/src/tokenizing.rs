@@ -8,39 +8,26 @@ use crate::errors::ParsingError;
 use crate::Token;
 
 pub(crate) fn tokenize(reader: impl Read) -> Result<Vec<Token>> {
-    Tokenizer::new().tokenize(reader)
-}
+    let mut tokens = vec![];
+    let mut reader = BufReader::new(reader);
+    let mut chars = reader.chars().peekable();
 
-struct Tokenizer {
-    tokens: Vec<Token>,
-}
-
-impl Tokenizer {
-    fn new() -> Tokenizer {
-        Tokenizer { tokens: vec![] }
-    }
-
-    fn tokenize(mut self, reader: impl Read) -> Result<Vec<Token>> {
-        let mut reader = BufReader::new(reader);
-        let mut chars = reader.chars().peekable();
-
-        while let Some(char) = chars.next() {
-            match char? {
-                c if c.is_alphabetic() => self.tokens.push(read_identifier(c, &mut chars)?),
-                c if c == '{' => self.tokens.push(Token::LeftBrace),
-                c if c == '}' => self.tokens.push(Token::RightBrace),
-                c if c == '(' => self.tokens.push(Token::LeftParenthesis),
-                c if c == ')' => self.tokens.push(Token::RightParenthesis),
-                c if c == '/' => self.tokens.push(read_comment(&mut chars)?),
-                c if c == ':' => self.tokens.push(Token::Colon),
-                c if c == '-' => self.tokens.push(read_operator(c, &mut chars)?),
-                c if c.is_whitespace() => continue,
-                value => return Err(ParsingError::UnexpectedCharacter(value).into()),
-            }
+    while let Some(char) = chars.next() {
+        match char? {
+            c if c.is_alphabetic() => tokens.push(read_identifier(c, &mut chars)?),
+            c if c == '{' => tokens.push(Token::LeftBrace),
+            c if c == '}' => tokens.push(Token::RightBrace),
+            c if c == '(' => tokens.push(Token::LeftParenthesis),
+            c if c == ')' => tokens.push(Token::RightParenthesis),
+            c if c == '/' => tokens.push(read_comment(&mut chars)?),
+            c if c == ':' => tokens.push(Token::Colon),
+            c if c == '-' => tokens.push(read_operator(c, &mut chars)?),
+            c if c.is_whitespace() => continue,
+            value => return Err(ParsingError::UnexpectedCharacter(value).into()),
         }
-
-        Ok(self.tokens)
     }
+
+    Ok(tokens)
 }
 
 fn read_identifier(
@@ -66,15 +53,15 @@ fn read_comment(iterator: &mut Peekable<Chars<'_, BufReader<impl Read>>>) -> Res
     let comment_type = iterator.next().ok_or(ParsingError::EndOfFile)?;
     match comment_type {
         Ok('/') => read_line_comment(iterator),
-        Ok('*') => return Err(ParsingError::FeatureNotSupported("block comment".into()).into()),
-        Ok(value) => return Err(ParsingError::UnexpectedCharacter(value).into()),
-        Err(error) => return Err(error.into()),
+        Ok('*') => Err(ParsingError::FeatureNotSupported("block comment".into()).into()),
+        Ok(value) => Err(ParsingError::UnexpectedCharacter(value).into()),
+        Err(error) => Err(error.into()),
     }
 }
 
 fn read_line_comment(iterator: &mut Peekable<Chars<'_, BufReader<impl Read>>>) -> Result<Token> {
     let mut comment = String::new();
-    while let Some(char) = iterator.next() {
+    for char in iterator.by_ref() {
         let char = char?;
         if char == '\n' {
             break;

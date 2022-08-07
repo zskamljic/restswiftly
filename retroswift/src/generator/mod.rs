@@ -165,9 +165,9 @@ impl Generator {
         let mut function = FunctionBuilder::new(name);
         // TODO: validate all parameters used and no duplicates
         parameters
-            .into_iter()
+            .iter()
             .map(|p| ParameterBuilder {
-                label: p.label.as_ref().map(|s| s.clone()),
+                label: p.label.as_ref().cloned(),
                 name: p.name.clone(),
                 parameter_type: p.parameter_type.clone(),
             })
@@ -220,14 +220,10 @@ impl Generator {
         if !path.starts_with('/') {
             return Err(GeneratingError::GeneralError("Path must start with /".into()).into());
         }
-        let mut path_parts = path.splitn(2, "?");
-        let path =
-            path_parts
-                .next()
-                .map(|p| p.to_string())
-                .ok_or(GeneratingError::GeneralError(
-                    "Unable to split path and query".into(),
-                ))?;
+        let mut path_parts = path.splitn(2, '?');
+        let path = path_parts.next().map(|p| p.to_string()).ok_or_else(|| {
+            GeneratingError::GeneralError("Unable to split path and query".into())
+        })?;
         let query_params = parse_query_params(path_parts.next())?;
         Ok(CallDefinition {
             verb,
@@ -264,16 +260,16 @@ fn parse_query_params(query: Option<&str>) -> Result<Vec<(String, QueryValue)>> 
         None => return Ok(vec![]),
     };
     let mut query_values = vec![];
-    for query_item in query.split("&") {
-        let mut parts = query_item.split("=");
+    for query_item in query.split('&') {
+        let mut parts = query_item.split('=');
         let name = parts
             .next()
-            .ok_or(GeneratingError::GeneralError("Query name required".into()))?
+            .ok_or_else(|| GeneratingError::GeneralError("Query name required".into()))?
             .to_string();
         let value = match parts.next() {
             Some(value) => {
-                if value.starts_with(':') {
-                    QueryValue::Parameter(value[1..].into())
+                if let Some(suffix) = value.strip_prefix(':') {
+                    QueryValue::Parameter(suffix.into())
                 } else {
                     QueryValue::Value(value.into())
                 }

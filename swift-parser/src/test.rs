@@ -83,7 +83,7 @@ fn tokenize_params() -> Result<()> {
             Token::RightParenthesis,
             Token::Identifier("async".to_owned()),
             Token::Identifier("throws".to_owned()),
-            Token::LineComment("GET /get?q=:query".to_owned()),
+            Token::LineComment("GET /get?q=:query&q2=something".to_owned()),
             Token::Identifier("func".to_owned()),
             Token::Identifier("get".to_owned()),
             Token::LeftParenthesis,
@@ -259,20 +259,17 @@ fn parse_parameter_list() -> Result<()> {
 
     let definitions = parse(tokens)?;
     assert_eq!(1, definitions.len());
-    if let Definition::Protocol(name, definitions) = &definitions[0] {
-        assert_eq!("Simple", name);
-        assert_eq!(2, definitions.len());
-        if let Definition::Comment(comment) = &definitions[0] {
-            assert_eq!("GET /get", comment);
-        } else {
-            panic!("Expected comment");
-        }
+    if let Definition::Protocol(_, definitions) = &definitions[0] {
         if let Definition::Function {
             name, parameters, ..
         } = &definitions[1]
         {
             assert_eq!("get", name);
-            assert_eq!(2, parameters.len());
+            assert_eq!(1, parameters.len());
+            let parameter = &parameters[0];
+            assert!(matches!(parameter.label, None));
+            assert_eq!("query".to_owned(), parameter.name);
+            assert_eq!("String".to_owned(), parameter.parameter_type);
         } else {
             panic!("Expected function");
         }

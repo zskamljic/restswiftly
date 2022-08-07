@@ -8,8 +8,6 @@ pub(crate) fn parse(token: Vec<Token>) -> Result<Vec<Definition>> {
     Parser::new().parse(token)
 }
 
-type Parameter = ();
-
 struct Parser {
     state: State,
     definitions: Vec<Definition>,
@@ -33,8 +31,16 @@ impl Parser {
                 State::ProtocolStart => self.handle_protocol_start(token)?,
                 State::ProtocolWithName(name) => self.handle_protocol_content(token, name)?,
                 State::FunctionStart => self.handle_function_start(token)?,
-                State::FunctionWithName(name) => self.handle_parameter_name(token, name)?,
+                State::FunctionWithName(name) => self.handle_parameters_start(token, name)?,
                 State::ParameterList => self.handle_parameter_list(token)?,
+                State::ParameterName(name) => self.handle_parameter_name(token, None, name)?,
+                State::ParameterLabelName(label, name) => {
+                    self.handle_parameter_name(token, Some(label), name)?
+                }
+                State::ParameterWithoutType(label, name) => {
+                    self.handle_parameter_type(token, label, name)?
+                }
+                State::NextParameter => self.handle_next_parameter(token)?,
                 State::FunctionModifiers(name, parameters, modifiers) => {
                     self.handle_function_modifiers(token, name, parameters, modifiers)?
                 }
@@ -122,7 +128,7 @@ impl Parser {
         }
     }
 
-    fn handle_parameter_name(&mut self, token: Token, name: String) -> Result<State> {
+    fn handle_parameters_start(&mut self, token: Token, name: String) -> Result<State> {
         if matches!(token, Token::LeftParenthesis) {
             let current_definitions = mem::take(&mut self.definitions);
             self.previous_states
@@ -135,21 +141,63 @@ impl Parser {
 
     fn handle_parameter_list(&mut self, token: Token) -> Result<State> {
         match token {
-            Token::RightParenthesis => {
-                let (previous_state, previous_definitions) = self
-                    .previous_states
-                    .pop()
-                    .ok_or(ParsingError::InvalidParameterTarget)?;
-                if let State::FunctionWithName(name) = previous_state {
-                    if !self.definitions.is_empty() {
-                        panic!("The definitions must be empty"); // TODO: parameters
-                    }
-                    self.definitions = previous_definitions;
-                    Ok(State::FunctionModifiers(name, vec![], vec![]))
-                } else {
-                    Err(ParsingError::UnexpectedState(format!("{previous_state:?}")).into())
-                }
+            Token::RightParenthesis => self.finalize_function(),
+            Token::Identifier(value) => Ok(State::ParameterName(value)),
+            value => Err(ParsingError::UnexpectedToken(value).into()),
+        }
+    }
+
+    fn finalize_function(&mut self) -> Result<State> {
+        let (previous_state, previous_definitions) = self
+            .previous_states
+            .pop()
+            .ok_or(ParsingError::InvalidParameterTarget)?;
+        if let State::FunctionWithName(name) = previous_state {
+            let mut parameters = vec![];
+            for definition in mem::take(&mut self.definitions) {
+                let parameter = definition_to_param(definition)?;
+                parameters.push(parameter);
             }
+            self.definitions = previous_definitions;
+            Ok(State::FunctionModifiers(name, parameters, vec![]))
+        } else {
+            Err(ParsingError::UnexpectedState(format!("{previous_state:?}")).into())
+        }
+    }
+
+    fn handle_parameter_name(
+        &mut self,
+        token: Token,
+        label: Option<String>,
+        name: String,
+    ) -> Result<State> {
+        let state = match token {
+            Token::Identifier(value) => State::ParameterLabelName(name, value),
+            Token::Colon => State::ParameterWithoutType(label, name),
+            token => return Err(ParsingError::UnexpectedToken(token).into()),
+        };
+        Ok(state)
+    }
+
+    fn handle_parameter_type(
+        &mut self,
+        token: Token,
+        label: Option<String>,
+        name: String,
+    ) -> Result<State> {
+        match token {
+            Token::Identifier(value) => {
+                self.definitions
+                    .push(Definition::Parameter(label, name, value));
+                Ok(State::NextParameter)
+            }
+            value => Err(ParsingError::UnexpectedToken(value).into()),
+        }
+    }
+
+    fn handle_next_parameter(&mut self, token: Token) -> Result<State> {
+        match token {
+            Token::RightParenthesis => self.finalize_function(),
             value => Err(ParsingError::UnexpectedToken(value).into()),
         }
     }
@@ -173,7 +221,7 @@ impl Parser {
             Token::RightBrace => {
                 self.definitions.push(Definition::Function {
                     name,
-                    parameters: vec![],
+                    parameters,
                     modifiers,
                     return_type: None,
                 });
@@ -183,7 +231,7 @@ impl Parser {
             Token::LineComment(comment) => {
                 self.definitions.push(Definition::Function {
                     name,
-                    parameters: vec![],
+                    parameters,
                     modifiers,
                     return_type: None,
                 });
@@ -209,7 +257,7 @@ impl Parser {
     fn handle_function_return(
         &mut self,
         token: Token,
-        parameters: Vec<()>,
+        parameters: Vec<Parameter>,
         name: String,
         modifiers: Vec<PostfixModifier>,
     ) -> Result<State> {
@@ -260,15 +308,36 @@ fn add_modifier(
     Ok(modifiers)
 }
 
+fn definition_to_param(definition: Definition) -> Result<Parameter> {
+    match definition {
+        Definition::Parameter(label, name, parameter_type) => Ok(Parameter {
+            label,
+            name,
+            parameter_type,
+        }),
+        value => {
+            Err(ParsingError::GeneralError(format!("Expected parameter, but got {value:?}")).into())
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Parameter {
+    pub label: Option<String>,
+    pub name: String,
+    pub parameter_type: String,
+}
+
 #[derive(Debug)]
 pub enum Definition {
     Comment(String),
     Function {
         name: String,
-        parameters: Vec<()>,
+        parameters: Vec<Parameter>,
         modifiers: Vec<PostfixModifier>,
         return_type: Option<String>,
     },
+    Parameter(Option<String>, String, String),
     Protocol(String, Vec<Definition>),
 }
 
@@ -287,6 +356,10 @@ enum State {
     FunctionStart,
     FunctionWithName(String),
     ParameterList,
+    ParameterName(String),
+    ParameterLabelName(String, String),
+    ParameterWithoutType(Option<String>, String),
+    NextParameter,
     FunctionModifiers(String, Vec<Parameter>, Vec<PostfixModifier>),
     FunctionWithReturn(String, Vec<Parameter>, Vec<PostfixModifier>),
 }

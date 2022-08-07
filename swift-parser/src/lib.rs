@@ -11,6 +11,7 @@ mod test;
 mod tokenizing;
 
 pub use parsing::Definition;
+pub use parsing::Parameter;
 pub use parsing::PostfixModifier;
 
 pub fn read_definitions(reader: impl Read) -> Result<Vec<Definition>> {

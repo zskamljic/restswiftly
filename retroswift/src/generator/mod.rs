@@ -4,7 +4,7 @@ use swift_generator::{
     AccessModifier, ClassBuilder, CodeBuilder, ControlType, FieldBuilder, FunctionBuilder,
     ParameterBuilder,
 };
-use swift_parser::{Definition, PostfixModifier};
+use swift_parser::{Definition, Parameter, PostfixModifier};
 
 use self::errors::GeneratingError;
 
@@ -93,7 +93,7 @@ impl Generator {
     fn generate_function_definition(
         &mut self,
         name: &str,
-        parameters: &[()],
+        parameters: &[Parameter],
         modifiers: &[PostfixModifier],
         return_type: &Option<String>,
     ) -> Result<()> {
@@ -106,7 +106,7 @@ impl Generator {
                 )
             }
         };
-        let call = self.generate_call(name, modifiers, return_type, definition)?;
+        let call = self.generate_call(name, parameters, modifiers, return_type, definition)?;
         self.calls.push(call);
         Ok(())
     }
@@ -114,6 +114,7 @@ impl Generator {
     fn generate_call(
         &mut self,
         name: &str,
+        parameters: &[Parameter],
         modifiers: &[PostfixModifier],
         return_type: &Option<String>,
         definition: CallDefinition,
@@ -132,17 +133,25 @@ impl Generator {
 
         let mut code = CodeBuilder::default();
         code.add_statement(&format!(
-            r#"let url = URL(string: baseUrl + "{}")!"#,
+            r#"{} url = URL(string: baseUrl + "{}")!"#,
+            if definition.query.is_empty() {
+                "let"
+            } else {
+                "var"
+            },
             definition.path
-        ))
-        .add_statement("var request = URLRequest(url: url)")
-        .add_statement(&format!(r#"request.httpMethod = "{}""#, definition.verb))
-        .add_statement("let (data, response) = try await URLSession.shared.data(for: request)")
-        .add_control(
-            ControlType::Guard,
-            "(response as? HTTPURLResponse)?.statusCode == 200",
-            failure,
-        );
+        ));
+        if !definition.query.is_empty() {
+            add_query_parameters(&mut code, definition.query);
+        }
+        code.add_statement("var request = URLRequest(url: url)")
+            .add_statement(&format!(r#"request.httpMethod = "{}""#, definition.verb))
+            .add_statement("let (data, response) = try await URLSession.shared.data(for: request)")
+            .add_control(
+                ControlType::Guard,
+                "(response as? HTTPURLResponse)?.statusCode == 200",
+                failure,
+            );
 
         if let Some(return_type) = return_type {
             code.add_statement("let decoder = JSONDecoder()")
@@ -154,6 +163,17 @@ impl Generator {
         }
 
         let mut function = FunctionBuilder::new(name);
+        // TODO: validate all parameters used and no duplicates
+        parameters
+            .into_iter()
+            .map(|p| ParameterBuilder {
+                label: p.label.as_ref().map(|s| s.clone()),
+                name: p.name.clone(),
+                parameter_type: p.parameter_type.clone(),
+            })
+            .for_each(|p| {
+                function.add_parameter(p);
+            });
         function.set_async(true).set_throws(true);
         if let Some(return_type) = return_type {
             function.set_return_type(return_type);
@@ -191,7 +211,29 @@ impl Generator {
                 )
             }
         };
-        Ok(CallDefinition { verb, path })
+        if let Some(value) = parts.next() {
+            return Err(GeneratingError::GeneralError(format!(
+                "Call format should be in format <VERB> /path?with=query, unknown token: {value}"
+            ))
+            .into());
+        }
+        if !path.starts_with('/') {
+            return Err(GeneratingError::GeneralError("Path must start with /".into()).into());
+        }
+        let mut path_parts = path.splitn(2, "?");
+        let path =
+            path_parts
+                .next()
+                .map(|p| p.to_string())
+                .ok_or(GeneratingError::GeneralError(
+                    "Unable to split path and query".into(),
+                ))?;
+        let query_params = parse_query_params(path_parts.next())?;
+        Ok(CallDefinition {
+            verb,
+            path,
+            query: query_params,
+        })
     }
 }
 
@@ -216,7 +258,65 @@ fn make_constructor() -> FunctionBuilder {
     constructor
 }
 
+fn parse_query_params(query: Option<&str>) -> Result<Vec<(String, QueryValue)>> {
+    let query = match query {
+        Some(value) => value,
+        None => return Ok(vec![]),
+    };
+    let mut query_values = vec![];
+    for query_item in query.split("&") {
+        let mut parts = query_item.split("=");
+        let name = parts
+            .next()
+            .ok_or(GeneratingError::GeneralError("Query name required".into()))?
+            .to_string();
+        let value = match parts.next() {
+            Some(value) => {
+                if value.starts_with(':') {
+                    QueryValue::Parameter(value[1..].into())
+                } else {
+                    QueryValue::Value(value.into())
+                }
+            }
+            None => QueryValue::None,
+        };
+
+        query_values.push((name, value))
+    }
+
+    Ok(query_values)
+}
+
+fn add_query_parameters(code: &mut CodeBuilder, query: Vec<(String, QueryValue)>) {
+    code.add_statement("var urlComponents = URLComponents(string: url.absoluteString)!")
+        .add_statement("var queryItems = urlComponents.queryItems ?? []");
+    query.into_iter().for_each(|(name, value)| {
+        let statement = match value {
+            QueryValue::None => {
+                format!(r#"queryItems.append(URLQueryItem(name: "{name}", value: nil))"#,)
+            }
+            QueryValue::Parameter(parameter) => {
+                format!(r#"queryItems.append(URLQueryItem(name: "{name}", value: {parameter}))"#,)
+            }
+            QueryValue::Value(value) => {
+                format!(r#"queryItems.append(URLQueryItem(name: "{name}", value: "{value}"))"#,)
+            }
+        };
+        code.add_statement(&statement);
+    });
+    code.add_statement("urlComponents.queryItems = queryItems")
+        .add_statement("url = urlComponents.url!");
+}
+
 struct CallDefinition {
     verb: String,
     path: String,
+    query: Vec<(String, QueryValue)>,
+}
+
+#[derive(Debug)]
+enum QueryValue {
+    None,
+    Parameter(String),
+    Value(String),
 }

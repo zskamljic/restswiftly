@@ -20,4 +20,6 @@ pub(crate) enum ParsingError {
     UnexpectedState(String),
     #[error("Parsing did not complete correctly: {0}")]
     GeneralError(String),
+    #[error("Unexpected end of file")]
+    EndOfFile,
 }

@@ -4,10 +4,6 @@ use crate::Token;
 
 #[derive(Error, Debug)]
 pub(crate) enum ParsingError {
-    #[error("Invalid token for parameters")]
-    InvalidParameterTarget,
-    #[error("Invalid scope target")]
-    InvalidScopeTarget,
     #[error("Feature not supported: {0}")]
     FeatureNotSupported(String),
     #[error("Unexpected character: {0}")]

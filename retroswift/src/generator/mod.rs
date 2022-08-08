@@ -9,6 +9,7 @@ use swift_parser::{Definition, Parameter, PostfixModifier};
 use self::errors::GeneratingError;
 
 mod errors;
+mod parameters;
 mod query;
 #[cfg(test)]
 mod test;
@@ -120,6 +121,8 @@ impl Generator {
         return_type: &Option<String>,
         definition: CallDefinition,
     ) -> Result<FunctionBuilder> {
+        parameters::ensure_present(parameters, &definition)?;
+
         if !modifiers.contains(&PostfixModifier::Async)
             || !modifiers.contains(&PostfixModifier::Throws)
         {

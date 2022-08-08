@@ -33,7 +33,7 @@ impl Parser {
                 Token::Identifier(value) => self.handle_identifier(&value, &mut tokens)?,
                 Token::LineComment(comment) => self.definitions.push(Definition::Comment(comment)),
                 Token::RightBrace => self.pop_state()?,
-                value => todo!("Not handled: {value:?}"),
+                value => return Err(ParsingError::UnexpectedToken(value).into()),
             }
         }
 
@@ -132,36 +132,30 @@ impl Parser {
     fn parse_modifiers(tokens: &mut TokenIter) -> Result<Vec<PostfixModifier>> {
         let mut modifiers = vec![];
 
-        loop {
-            match tokens.peek() {
-                Some(Token::Identifier(modifier)) => {
-                    if modifier == "async" {
-                        if modifiers.contains(&PostfixModifier::Throws) {
-                            return Err(ParsingError::GeneralError(
-                                "async cannot come after throws".into(),
-                            )
-                            .into());
-                        }
-                        if modifiers.contains(&PostfixModifier::Async) {
-                            return Err(ParsingError::GeneralError(
-                                "async cannot come after async".into(),
-                            )
-                            .into());
-                        }
-                        modifiers.push(PostfixModifier::Async);
-                        tokens.next();
-                    } else if modifier == "throws" {
-                        if modifiers.contains(&PostfixModifier::Throws) {
-                            return Err(ParsingError::GeneralError(
-                                "throws cannot come after throws".into(),
-                            )
-                            .into());
-                        }
-                        modifiers.push(PostfixModifier::Throws);
-                        tokens.next();
-                    }
+        while let Some(Token::Identifier(modifier)) = tokens.peek() {
+            if modifier == "async" {
+                if modifiers.contains(&PostfixModifier::Throws) {
+                    return Err(ParsingError::GeneralError(
+                        "async cannot come after throws".into(),
+                    )
+                    .into());
                 }
-                _ => break,
+                if modifiers.contains(&PostfixModifier::Async) {
+                    return Err(
+                        ParsingError::GeneralError("async cannot come after async".into()).into(),
+                    );
+                }
+                modifiers.push(PostfixModifier::Async);
+                tokens.next();
+            } else if modifier == "throws" {
+                if modifiers.contains(&PostfixModifier::Throws) {
+                    return Err(ParsingError::GeneralError(
+                        "throws cannot come after throws".into(),
+                    )
+                    .into());
+                }
+                modifiers.push(PostfixModifier::Throws);
+                tokens.next();
             }
         }
         Ok(modifiers)

@@ -1,2 +1,2 @@
 [workspace]
-members = ["retroswift", "swift-generator", "swift-parser"]
+members = ["restswiftly", "swift-generator", "swift-parser"]

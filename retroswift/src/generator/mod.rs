@@ -150,8 +150,12 @@ impl Generator {
             query::add_parameters(&mut code, definition.query);
         }
         code.add_statement("var request = URLRequest(url: url)")
-            .add_statement(&format!(r#"request.httpMethod = "{}""#, definition.verb))
-            .add_statement("let (data, response) = try await URLSession.shared.data(for: request)")
+            .add_statement(&format!(r#"request.httpMethod = "{}""#, definition.verb));
+        if has_body(&definition.verb, parameters) {
+            code.add_statement("let encoder = JSONEncoder()")
+                .add_statement("request.httpBody = try encoder.encode(body)");
+        }
+        code.add_statement("let (data, response) = try await URLSession.shared.data(for: request)")
             .add_control(
                 ControlType::Guard,
                 "(response as? HTTPURLResponse)?.statusCode == 200",
@@ -214,6 +218,17 @@ struct CallDefinition {
     path: String,
     path_params: Vec<String>,
     query: Vec<(String, QueryValue)>,
+}
+
+fn has_body(verb: &str, parameters: &[Parameter]) -> bool {
+    parameters
+        .iter()
+        .map(|p| p.name.clone())
+        .any(|p| p == "body")
+        && match verb {
+            "PATCH" | "POST" | "PUT" => true,
+            _ => false,
+        }
 }
 
 #[derive(Debug)]

@@ -1,41 +1,73 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use swift_parser::Parameter;
 
 use super::{errors::GeneratingError, path, query, CallDefinition, QueryValue};
 
 pub(super) fn ensure_present(parameters: &[Parameter], definition: &CallDefinition) -> Result<()> {
-    let mut names: Vec<_> = parameters.iter().map(|p| p.name.clone()).collect();
+    let mut names: HashMap<_, _> = parameters
+        .iter()
+        .map(|p| (p.name.clone(), p.parameter_type.clone()))
+        .collect();
+
+    if names.contains_key("body") {
+        match definition.verb.as_ref() {
+            "PATCH" | "POST" | "PUT" => {
+                names.remove("body");
+            }
+            other => {
+                return Err(GeneratingError::GeneralError(format!(
+                    "{other} does not support sending a body"
+                ))
+                .into());
+            }
+        }
+    }
 
     filter_query(&mut names, &definition.query)?;
     filter_path(&mut names, &definition.path_params)?;
     if !names.is_empty() {
-        return Err(GeneratingError::UnusedParameters(names).into());
+        return Err(GeneratingError::UnusedParameters(
+            names.keys().map(|s| s.to_owned()).collect(),
+        )
+        .into());
     }
     Ok(())
 }
 
-fn filter_query(names: &mut Vec<String>, query: &Vec<(String, QueryValue)>) -> Result<()> {
+fn filter_query(
+    parameters: &mut HashMap<String, String>,
+    query: &Vec<(String, QueryValue)>,
+) -> Result<()> {
     for (_, query) in query {
         if let QueryValue::Parameter(name) = query {
-            if let Some(index) = names.iter().position(|n| n == name) {
-                names.remove(index);
-            } else {
-                return Err(GeneratingError::MissingParameter(name.clone()).into());
-            }
+            remove_string_param(parameters, name)?;
         };
     }
     Ok(())
 }
 
-fn filter_path(names: &mut Vec<String>, path: &Vec<String>) -> Result<()> {
+fn filter_path(parameters: &mut HashMap<String, String>, path: &Vec<String>) -> Result<()> {
     for parameter in path {
-        if let Some(index) = names.iter().position(|n| n == parameter) {
-            names.remove(index);
-        } else {
-            return Err(GeneratingError::MissingParameter(parameter.clone()).into());
-        }
+        remove_string_param(parameters, parameter)?;
     }
     Ok(())
+}
+
+fn remove_string_param(parameters: &mut HashMap<String, String>, parameter: &str) -> Result<()> {
+    if parameters.contains_key(parameter) {
+        let param = parameters.remove(parameter).unwrap();
+        match param.as_str() {
+            "String" => (),
+            other => {
+                return Err(GeneratingError::GeneralError(format!("Invalid type: {other}")).into())
+            }
+        }
+        Ok(())
+    } else {
+        Err(GeneratingError::MissingParameter(parameter.to_owned()).into())
+    }
 }
 
 pub(super) fn parse_call_definition(call: &str) -> Result<CallDefinition> {

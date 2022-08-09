@@ -21,6 +21,7 @@ pub(crate) fn tokenize(reader: impl Read) -> Result<Vec<Token>> {
             c if c == ')' => tokens.push(Token::RightParenthesis),
             c if c == '/' => tokens.push(read_comment(&mut chars)?),
             c if c == ':' => tokens.push(Token::Colon),
+            c if c == ',' => tokens.push(Token::Comma),
             c if c == '-' => tokens.push(read_operator(c, &mut chars)?),
             c if c.is_whitespace() => continue,
             value => return Err(ParsingError::UnexpectedCharacter(value).into()),

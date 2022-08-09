@@ -227,7 +227,16 @@ fn read_parameters(tokens: &mut TokenIter) -> Result<Vec<Parameter>> {
             label: label_and_name.0,
             name: label_and_name.1,
             parameter_type: type_name,
-        })
+        });
+
+        if let Some(next) = tokens.peek() {
+            match next {
+                Token::Comma => {
+                    tokens.next();
+                }
+                _ => break,
+            }
+        }
     }
 
     Ok(parameters)

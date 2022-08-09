@@ -20,6 +20,7 @@ fn generated_files_correct() -> Result<()> {
         "QueryParameter",
         "Path",
         "Body",
+        "Combined",
     ]
     .into_iter()
     {

@@ -29,4 +29,5 @@ enum Token {
     RightParenthesis,
     Operator(String),
     Colon,
+    Comma,
 }

@@ -1,5 +1,6 @@
 use anyhow::Result;
 use regex::Regex;
+use std::fmt::Write;
 
 use super::CallDefinition;
 
@@ -7,7 +8,11 @@ pub(super) fn create_template(definition: &CallDefinition) -> String {
     let mut path = format!(r#""{}""#, definition.path);
 
     for param in &definition.path_params {
-        path += &format!(r#".replacingOccurrences(of: "{{{param}}}", with: {param})"#);
+        write!(
+            path,
+            r#".replacingOccurrences(of: "{{{param}}}", with: {param})"#
+        )
+        .expect("Unable to concat string");
     }
     path
 }

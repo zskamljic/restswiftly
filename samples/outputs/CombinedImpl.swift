@@ -9,7 +9,7 @@ class CombinedImpl: Combined {
         self.baseUrl = baseUrl
     }
 
-    func post(for query: String,with path: String,body: Hello) async throws -> Hello {
+    func post(for query: String, with path: String, body: Hello) async throws -> Hello {
         var url = URL(string: baseUrl + "/{path}".replacingOccurrences(of: "{path}", with: path))!
         var urlComponents = URLComponents(string: url.absoluteString)!
         var queryItems = urlComponents.queryItems ?? []

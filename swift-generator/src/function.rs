@@ -86,7 +86,7 @@ impl FunctionBuilder {
             let parameter = &self.parameters[i];
             parameter.generate(writer)?;
             if i < self.parameters.len() - 1 {
-                write!(writer, ",")?;
+                write!(writer, ", ")?;
             }
         }
         Ok(())

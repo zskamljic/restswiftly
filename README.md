@@ -54,3 +54,7 @@ func get(query: String, path: String, header: String)
 The `GET /path?q=:query` defines a `GET` request to `/path/{path}` with placeholder, replaced with value from `path`,
 with query parameter named `q`, whose value will be set to the value of parameter `query`. In a similar way, `Custom`
 header will be set to value of `header` variable.
+
+## License
+
+Project uses Apache 2.0 license. More info in [license file](LICENSE)

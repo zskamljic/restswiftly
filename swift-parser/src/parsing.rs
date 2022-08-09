@@ -223,7 +223,6 @@ fn read_parameters(tokens: &mut TokenIter) -> Result<Vec<Parameter>> {
             Some(token) => return Err(ParsingError::UnexpectedToken(token).into()),
             None => return Err(ParsingError::EndOfFile.into()),
         };
-        println!("Read type: {type_name}");
         parameters.push(Parameter {
             label: label_and_name.0,
             name: label_and_name.1,

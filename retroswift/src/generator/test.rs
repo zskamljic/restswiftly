@@ -13,7 +13,7 @@ use super::errors::GeneratingError;
 
 #[test]
 fn generated_files_correct() -> Result<()> {
-    for file in vec!["Simple", "AllMethods", "Return", "QueryParameter"].into_iter() {
+    for file in vec!["Simple", "AllMethods", "Return", "QueryParameter", "Path"].into_iter() {
         generated_file_correct(file)?;
         println!("File correct: {file}");
     }

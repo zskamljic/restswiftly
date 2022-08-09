@@ -10,6 +10,7 @@ use self::errors::GeneratingError;
 
 mod errors;
 mod parameters;
+mod path;
 mod query;
 #[cfg(test)]
 mod test;
@@ -73,7 +74,7 @@ impl Generator {
 
     fn handle_call_definition(&mut self, comment: &str) -> Result<()> {
         let definition = mem::take(&mut self.definition);
-        match (definition, Generator::parse_call_definition(comment)) {
+        match (definition, parameters::parse_call_definition(comment)) {
             (None, Ok(value)) => self.definition = Some(value),
             (Some(_), Ok(_)) => {
                 return Err(GeneratingError::GeneralError(
@@ -137,13 +138,13 @@ impl Generator {
 
         let mut code = CodeBuilder::default();
         code.add_statement(&format!(
-            r#"{} url = URL(string: baseUrl + "{}")!"#,
+            r#"{} url = URL(string: baseUrl + {})!"#,
             if definition.query.is_empty() {
                 "let"
             } else {
                 "var"
             },
-            definition.path
+            path::create_template(&definition),
         ));
         if !definition.query.is_empty() {
             query::add_parameters(&mut code, definition.query);
@@ -185,56 +186,6 @@ impl Generator {
         function.add_code(code);
         Ok(function)
     }
-
-    fn parse_call_definition(call: &str) -> Result<CallDefinition> {
-        let mut parts = call.split_whitespace();
-        let verb = match parts.next() {
-            Some(verb) => verb.to_owned(),
-            None => {
-                return Err(
-                    GeneratingError::GeneralError("Call verb was not present".into()).into(),
-                )
-            }
-        };
-        let allowed_verbs = vec![
-            "DELETE".to_owned(),
-            "GET".to_owned(),
-            "PATCH".to_owned(),
-            "POST".to_owned(),
-            "PUT".to_owned(),
-        ];
-        if !allowed_verbs.contains(&verb) {
-            return Err(GeneratingError::GeneralError("Invalid request verb".into()).into());
-        }
-
-        let path = match parts.next() {
-            Some(path) => path.to_owned(),
-            None => {
-                return Err(
-                    GeneratingError::GeneralError("Call path was not present".into()).into(),
-                )
-            }
-        };
-        if let Some(value) = parts.next() {
-            return Err(GeneratingError::GeneralError(format!(
-                "Call format should be in format <VERB> /path?with=query, unknown token: {value}"
-            ))
-            .into());
-        }
-        if !path.starts_with('/') {
-            return Err(GeneratingError::GeneralError("Path must start with /".into()).into());
-        }
-        let mut path_parts = path.splitn(2, '?');
-        let path = path_parts.next().map(|p| p.to_string()).ok_or_else(|| {
-            GeneratingError::GeneralError("Unable to split path and query".into())
-        })?;
-        let query_params = query::parse_params(path_parts.next())?;
-        Ok(CallDefinition {
-            verb,
-            path,
-            query: query_params,
-        })
-    }
 }
 
 fn make_constructor() -> FunctionBuilder {
@@ -261,6 +212,7 @@ fn make_constructor() -> FunctionBuilder {
 struct CallDefinition {
     verb: String,
     path: String,
+    path_params: Vec<String>,
     query: Vec<(String, QueryValue)>,
 }
 

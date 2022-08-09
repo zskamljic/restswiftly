@@ -241,6 +241,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "regex",
  "swift-generator",
  "swift-parser",
  "thiserror",

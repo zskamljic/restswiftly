@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use swift_parser::Parameter;
 
-use super::{errors::GeneratingError, path, query, CallDefinition, QueryValue};
+use super::{errors::GeneratingError, path, query, CallDefinition, ParameterValue};
 
 pub(super) fn ensure_present(parameters: &[Parameter], definition: &CallDefinition) -> Result<()> {
     let mut names: HashMap<_, _> = parameters
@@ -27,6 +27,7 @@ pub(super) fn ensure_present(parameters: &[Parameter], definition: &CallDefiniti
 
     filter_query(&mut names, &definition.query)?;
     filter_path(&mut names, &definition.path_params)?;
+    filter_headers(&mut names, &definition.headers)?;
     if !names.is_empty() {
         return Err(GeneratingError::UnusedParameters(
             names.keys().map(|s| s.to_owned()).collect(),
@@ -38,10 +39,10 @@ pub(super) fn ensure_present(parameters: &[Parameter], definition: &CallDefiniti
 
 fn filter_query(
     parameters: &mut HashMap<String, String>,
-    query: &Vec<(String, QueryValue)>,
+    query: &Vec<(String, ParameterValue)>,
 ) -> Result<()> {
     for (_, query) in query {
-        if let QueryValue::Parameter(name) = query {
+        if let ParameterValue::Parameter(name) = query {
             remove_string_param(parameters, name)?;
         };
     }
@@ -51,6 +52,18 @@ fn filter_query(
 fn filter_path(parameters: &mut HashMap<String, String>, path: &Vec<String>) -> Result<()> {
     for parameter in path {
         remove_string_param(parameters, parameter)?;
+    }
+    Ok(())
+}
+
+fn filter_headers(
+    parameters: &mut HashMap<String, String>,
+    headers: &Vec<(String, ParameterValue)>,
+) -> Result<()> {
+    for (_, header) in headers {
+        if let ParameterValue::Parameter(name) = header {
+            remove_string_param(parameters, name)?;
+        };
     }
     Ok(())
 }
@@ -113,6 +126,7 @@ pub(super) fn parse_call_definition(call: &str) -> Result<CallDefinition> {
     let path_params = path::parse_params(&path)?;
     Ok(CallDefinition {
         verb,
+        headers: vec![],
         path,
         path_params,
         query: query_params,

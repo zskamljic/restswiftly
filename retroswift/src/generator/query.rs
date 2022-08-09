@@ -1,20 +1,20 @@
 use anyhow::Result;
 use swift_generator::CodeBuilder;
 
-use super::{errors::GeneratingError, QueryValue};
+use super::{errors::GeneratingError, ParameterValue};
 
-pub(super) fn add_parameters(code: &mut CodeBuilder, query: Vec<(String, QueryValue)>) {
+pub(super) fn add_parameters(code: &mut CodeBuilder, query: Vec<(String, ParameterValue)>) {
     code.add_statement("var urlComponents = URLComponents(string: url.absoluteString)!")
         .add_statement("var queryItems = urlComponents.queryItems ?? []");
     query.into_iter().for_each(|(name, value)| {
         let statement = match value {
-            QueryValue::None => {
+            ParameterValue::None => {
                 format!(r#"queryItems.append(URLQueryItem(name: "{name}", value: nil))"#,)
             }
-            QueryValue::Parameter(parameter) => {
+            ParameterValue::Parameter(parameter) => {
                 format!(r#"queryItems.append(URLQueryItem(name: "{name}", value: {parameter}))"#,)
             }
-            QueryValue::Value(value) => {
+            ParameterValue::Value(value) => {
                 format!(r#"queryItems.append(URLQueryItem(name: "{name}", value: "{value}"))"#,)
             }
         };
@@ -24,7 +24,7 @@ pub(super) fn add_parameters(code: &mut CodeBuilder, query: Vec<(String, QueryVa
         .add_statement("url = urlComponents.url!");
 }
 
-pub(super) fn parse_params(query: Option<&str>) -> Result<Vec<(String, QueryValue)>> {
+pub(super) fn parse_params(query: Option<&str>) -> Result<Vec<(String, ParameterValue)>> {
     let query = match query {
         Some(value) => value,
         None => return Ok(vec![]),
@@ -39,12 +39,12 @@ pub(super) fn parse_params(query: Option<&str>) -> Result<Vec<(String, QueryValu
         let value = match parts.next() {
             Some(value) => {
                 if let Some(suffix) = value.strip_prefix(':') {
-                    QueryValue::Parameter(suffix.into())
+                    ParameterValue::Parameter(suffix.into())
                 } else {
-                    QueryValue::Value(value.into())
+                    ParameterValue::Value(value.into())
                 }
             }
-            None => QueryValue::None,
+            None => ParameterValue::None,
         };
 
         query_values.push((name, value))

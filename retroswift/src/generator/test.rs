@@ -21,6 +21,7 @@ fn generated_files_correct() -> Result<()> {
         "Path",
         "Body",
         "Combined",
+        "Headers",
     ]
     .into_iter()
     {

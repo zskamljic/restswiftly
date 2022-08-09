@@ -74,22 +74,12 @@ impl Generator {
 
     fn handle_call_definition(&mut self, comment: &str) -> Result<()> {
         let definition = mem::take(&mut self.definition);
-        match (definition, parameters::parse_call_definition(comment)) {
-            (None, Ok(value)) => self.definition = Some(value),
-            (Some(_), Ok(_)) => {
-                return Err(GeneratingError::GeneralError(
-                    "Call specifications must be single line".into(),
-                )
-                .into())
-            }
-            (_, Err(err)) => {
-                log::warn!("Failed to get definition: {err}");
-                return Err(GeneratingError::GeneralError(format!(
-                    "Failed to get definition: {err}"
-                ))
-                .into());
-            }
-        }
+        let definition = if let Some(definition) = definition {
+            parse_headers(definition, comment)?
+        } else {
+            parameters::parse_call_definition(comment)?
+        };
+        self.definition = Some(definition);
         Ok(())
     }
 
@@ -151,6 +141,7 @@ impl Generator {
         }
         code.add_statement("var request = URLRequest(url: url)")
             .add_statement(&format!(r#"request.httpMethod = "{}""#, definition.verb));
+        add_headers(&mut code, &definition.headers);
         if has_body(&definition.verb, parameters) {
             code.add_statement("let encoder = JSONEncoder()")
                 .add_statement("request.httpBody = try encoder.encode(body)");
@@ -213,11 +204,49 @@ fn make_constructor() -> FunctionBuilder {
     constructor
 }
 
+fn parse_headers(mut definition: CallDefinition, header: &str) -> Result<CallDefinition> {
+    let mut parts = header.splitn(2, ": ");
+    let name = match parts.next() {
+        None => return Ok(definition),
+        Some(name) => name.to_owned(),
+    };
+    let value = match parts.next() {
+        None => "".to_owned(),
+        Some(value) => value.to_owned(),
+    };
+    if value.starts_with("{") && value.ends_with("}") {
+        definition.headers.push((
+            name,
+            ParameterValue::Parameter(value[1..value.len() - 1].to_string()),
+        ));
+    } else {
+        definition
+            .headers
+            .push((name, ParameterValue::Value(value)));
+    }
+
+    Ok(definition)
+}
+
+fn add_headers(code: &mut CodeBuilder, headers: &Vec<(String, ParameterValue)>) {
+    for (header, value) in headers {
+        let value = match value {
+            ParameterValue::Parameter(name) => format!("{name}"),
+            ParameterValue::Value(value) => format!(r#""{value}""#),
+            ParameterValue::None => r#""""#.to_owned(),
+        };
+        code.add_statement(&format!(
+            r#"request.addValue({value}, forHTTPHeaderField: "{header}")"#
+        ));
+    }
+}
+
 struct CallDefinition {
     verb: String,
+    headers: Vec<(String, ParameterValue)>,
     path: String,
     path_params: Vec<String>,
-    query: Vec<(String, QueryValue)>,
+    query: Vec<(String, ParameterValue)>,
 }
 
 fn has_body(verb: &str, parameters: &[Parameter]) -> bool {
@@ -232,7 +261,7 @@ fn has_body(verb: &str, parameters: &[Parameter]) -> bool {
 }
 
 #[derive(Debug)]
-enum QueryValue {
+enum ParameterValue {
     None,
     Parameter(String),
     Value(String),

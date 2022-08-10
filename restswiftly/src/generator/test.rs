@@ -23,6 +23,7 @@ fn generated_files_correct() -> Result<()> {
         "Combined",
         "Headers",
         "FormEncoding",
+        "MultipartEncoding",
     ]
     .into_iter()
     {

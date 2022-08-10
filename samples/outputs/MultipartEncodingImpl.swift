@@ -13,8 +13,9 @@ class MultipartEncodingImpl: MultipartEncoding {
         let url = URL(string: baseUrl + "/post")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.addValue("multipart/form-data", forHTTPHeaderField: "Content-Type")
-        let encoder = MultipartEncoder()
+        let boundary = UUID().uuidString
+        request.addValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        let encoder = MultipartEncoder(boundary: boundary)
         request.httpBody = try encoder.encode(body)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {

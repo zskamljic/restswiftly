@@ -22,6 +22,7 @@ fn generated_files_correct() -> Result<()> {
         "Body",
         "Combined",
         "Headers",
+        "FormEncoding",
     ]
     .into_iter()
     {

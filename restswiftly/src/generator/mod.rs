@@ -143,7 +143,9 @@ impl Generator {
             .add_statement(&format!(r#"request.httpMethod = "{}""#, definition.verb));
         add_headers(&mut code, &definition.headers);
         if has_body(&definition.verb, parameters) {
-            code.add_statement("let encoder = JSONEncoder()")
+            let encoder = select_encoder(&definition.headers)?;
+
+            code.add_statement(&format!("let encoder = {encoder}()"))
                 .add_statement("request.httpBody = try encoder.encode(body)");
         }
         code.add_statement("let (data, response) = try await URLSession.shared.data(for: request)")
@@ -239,6 +241,39 @@ fn add_headers(code: &mut CodeBuilder, headers: &Vec<(String, ParameterValue)>) 
             r#"request.addValue({value}, forHTTPHeaderField: "{header}")"#
         ));
     }
+}
+
+fn select_encoder(headers: &Vec<(String, ParameterValue)>) -> Result<String> {
+    for (name, value) in headers {
+        if name.to_lowercase() != "content-type" {
+            continue;
+        }
+        match value {
+            ParameterValue::None => {
+                return Err(
+                    GeneratingError::GeneralError("content type must not be empty".into()).into(),
+                )
+            }
+            ParameterValue::Parameter(_) => {
+                return Err(GeneratingError::GeneralError(
+                    "content type must not be variable".into(),
+                )
+                .into())
+            }
+            ParameterValue::Value(value) => {
+                return match value.as_str() {
+                    "application/json" => Ok("JSONEncoder".into()),
+                    "application/x-www-form-urlencoded" => Ok("FormEncoder".into()),
+                    "multipart/form-data" => Ok("MultipartEncoder".into()),
+                    value => {
+                        Err(GeneratingError::GeneralError(format!("{value} not supported")).into())
+                    }
+                }
+            }
+        }
+    }
+
+    Ok("JSONEncoder".into())
 }
 
 struct CallDefinition {

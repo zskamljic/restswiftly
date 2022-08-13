@@ -78,6 +78,6 @@ fn generated_file_correct(name: &str) -> Result<()> {
     let expected = fs::read(format!("../samples/outputs/{name}Impl.swift"))?;
     let expected = from_utf8(&expected)?;
 
-    assert_eq!(expected, output);
+    assert_eq!(expected, output, "{name} failed assertion.");
     Ok(())
 }

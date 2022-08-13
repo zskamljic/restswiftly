@@ -1,12 +1,14 @@
 class HeadersImpl: Headers {
     private let baseUrl: String
+    private let interceptors: [Interceptor]
 
-    init(baseUrl: String) {
+    init(baseUrl: String, interceptors: Interceptor...) {
         var baseUrl = baseUrl
         if baseUrl.hasSuffix("/") {
             baseUrl = String(baseUrl.removeLast())
         }
         self.baseUrl = baseUrl
+        self.interceptors = interceptors
     }
 
     func get(for value: String) async throws {
@@ -15,7 +17,8 @@ class HeadersImpl: Headers {
         request.httpMethod = "GET"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue(value, forHTTPHeaderField: "Custom")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let chain = Chain(using: interceptors) { URLSession.shared.data(for: request) }
+        let (data, response) = try await chain.proceed(with: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }

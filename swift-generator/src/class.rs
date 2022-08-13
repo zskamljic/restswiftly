@@ -21,22 +21,26 @@ impl ClassBuilder {
         }
     }
 
-    pub fn add_super(&mut self, super_type: &str) {
+    pub fn add_super(&mut self, super_type: &str) -> &mut Self {
         self.supers.push(super_type.to_owned());
+        self
     }
 
-    pub fn add_field(&mut self, field: FieldBuilder) {
+    pub fn add_field(&mut self, field: FieldBuilder) -> &mut Self {
         self.fields.push(field);
+        self
     }
 
-    pub fn add_function(&mut self, function: FunctionBuilder) {
+    pub fn add_function(&mut self, function: FunctionBuilder) -> &mut Self {
         self.functions.push(function);
+        self
     }
 
-    pub fn add_functions(&mut self, functions: Vec<FunctionBuilder>) {
+    pub fn add_functions(&mut self, functions: Vec<FunctionBuilder>) -> &mut Self {
         for function in functions {
             self.add_function(function);
         }
+        self
     }
 
     pub fn generate(&self, writer: &mut impl Write, options: &Options) -> Result<()> {

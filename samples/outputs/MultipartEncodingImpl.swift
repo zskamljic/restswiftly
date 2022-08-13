@@ -1,12 +1,14 @@
 class MultipartEncodingImpl: MultipartEncoding {
     private let baseUrl: String
+    private let interceptors: [Interceptor]
 
-    init(baseUrl: String) {
+    init(baseUrl: String, interceptors: Interceptor...) {
         var baseUrl = baseUrl
         if baseUrl.hasSuffix("/") {
             baseUrl = String(baseUrl.removeLast())
         }
         self.baseUrl = baseUrl
+        self.interceptors = interceptors
     }
 
     func post(body: Hello) async throws {
@@ -17,7 +19,8 @@ class MultipartEncodingImpl: MultipartEncoding {
         request.addValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         let encoder = MultipartEncoder(boundary: boundary)
         request.httpBody = try encoder.encode(body)
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let chain = Chain(using: interceptors) { URLSession.shared.data(for: request) }
+        let (data, response) = try await chain.proceed(with: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             fatalError("Unable to fetch data")
         }

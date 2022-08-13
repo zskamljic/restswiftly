@@ -5,7 +5,7 @@ final class Chain {
     private let exchange: ExchangeCall
     private var currentInterceptor = 0
 
-    init(interceptors: [Interceptor], exchange: @escaping ExchangeCall) {
+    init(using interceptors: [Interceptor], and exchange: @escaping ExchangeCall) {
         self.interceptors = interceptors
         self.exchange = exchange
     }

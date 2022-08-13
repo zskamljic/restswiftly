@@ -41,14 +41,20 @@ impl Generator {
         }
 
         let mut class = ClassBuilder::new(&(name.to_owned() + "Impl"));
-        class.add_super(name);
-        class.add_field(FieldBuilder {
-            modifier: Some(AccessModifier::Private),
-            name: "baseUrl".into(),
-            field_type: "String".into(),
-        });
-        class.add_function(make_constructor());
-        class.add_functions(mem::take(&mut self.calls));
+        class
+            .add_super(name)
+            .add_field(FieldBuilder {
+                modifier: Some(AccessModifier::Private),
+                name: "baseUrl".into(),
+                field_type: "String".into(),
+            })
+            .add_field(FieldBuilder {
+                modifier: Some(AccessModifier::Private),
+                name: "interceptors".into(),
+                field_type: "[Interceptor]".into(),
+            })
+            .add_function(make_constructor())
+            .add_functions(mem::take(&mut self.calls));
 
         Ok(class)
     }
@@ -147,12 +153,15 @@ impl Generator {
             code.add_statement(&format!("let encoder = {encoder}"))
                 .add_statement("request.httpBody = try encoder.encode(body)");
         }
-        code.add_statement("let (data, response) = try await URLSession.shared.data(for: request)")
-            .add_control(
-                ControlType::Guard,
-                "(response as? HTTPURLResponse)?.statusCode == 200",
-                failure,
-            );
+        code.add_statement(
+            "let chain = Chain(using: interceptors) { URLSession.shared.data(for: request) }",
+        )
+        .add_statement("let (data, response) = try await chain.proceed(with: request)")
+        .add_control(
+            ControlType::Guard,
+            "(response as? HTTPURLResponse)?.statusCode == 200",
+            failure,
+        );
 
         if let Some(return_type) = return_type {
             code.add_statement("let decoder = JSONDecoder()")
@@ -191,7 +200,8 @@ fn make_constructor() -> FunctionBuilder {
     let mut code = CodeBuilder::default();
     code.add_statement("var baseUrl = baseUrl")
         .add_control(ControlType::If, r#"baseUrl.hasSuffix("/")"#, trim)
-        .add_statement("self.baseUrl = baseUrl");
+        .add_statement("self.baseUrl = baseUrl")
+        .add_statement("self.interceptors = interceptors");
 
     let mut constructor = FunctionBuilder::new("init");
     constructor
@@ -199,6 +209,11 @@ fn make_constructor() -> FunctionBuilder {
             label: None,
             name: "baseUrl".into(),
             parameter_type: "String".into(),
+        })
+        .add_parameter(ParameterBuilder {
+            label: None,
+            name: "interceptors".into(),
+            parameter_type: "Interceptor...".into(),
         })
         .add_code(code);
 

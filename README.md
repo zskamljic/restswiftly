@@ -55,6 +55,41 @@ The `GET /path?q=:query` defines a `GET` request to `/path/{path}` with placehol
 with query parameter named `q`, whose value will be set to the value of parameter `query`. In a similar way, `Custom`
 header will be set to value of `header` variable.
 
+## Interceptors
+
+Requests and responses can be intercepted by adding one or more `Interceptor`. Interceptors allow you to write code
+common for multiple requests. For example:
+
+```swift 
+// Add a header to url paths that contain `auth`
+class HeaderInterceptor: Interceptor {
+    func intercept(chain: Chain, for request: URLRequest) async throws -> (Data, URLResponse) {
+        let url = request.url!
+        if url.absoluteString.contains("auth") {
+            var request = request
+            request.addValue("Bearer token", forHTTPHeaderField: "Authorization")
+            return try await chain.proceed(with: request)
+        }
+        return try await chain.proceed(with: request)
+    }
+}
+```
+
+Or perhaps modifying/checking the response:
+
+```swift
+// Will print for each request returning 200
+class ResponseInterceptor: Interceptor {
+    func intercept(chain: Chain, for request: URLRequest) async throws -> (Data, URLResponse) {
+        let (data, response) = try await chain.proceed(with: request)
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+            print("Request was successful!")
+        }
+        return (data, response)
+    }
+}
+```
+
 ## License
 
 Project uses Apache 2.0 license. More info in [license file](LICENSE)

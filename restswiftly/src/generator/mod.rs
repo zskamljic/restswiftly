@@ -230,7 +230,7 @@ fn parse_headers(mut definition: CallDefinition, header: &str) -> Result<CallDef
         None => "".to_owned(),
         Some(value) => value.to_owned(),
     };
-    if value.starts_with("{") && value.ends_with("}") {
+    if value.starts_with('{') && value.ends_with('}') {
         definition.headers.push((
             name,
             ParameterValue::Parameter(value[1..value.len() - 1].to_string()),
@@ -247,7 +247,7 @@ fn parse_headers(mut definition: CallDefinition, header: &str) -> Result<CallDef
 fn add_headers(code: &mut CodeBuilder, headers: &Vec<(String, ParameterValue)>) {
     for (header, value) in headers {
         let value = match value {
-            ParameterValue::Parameter(name) => format!("{name}"),
+            ParameterValue::Parameter(name) => name.into(),
             ParameterValue::Value(value) => format!(r#""{value}""#),
             ParameterValue::None => r#""""#.to_owned(),
         };
@@ -310,10 +310,7 @@ fn has_body(verb: &str, parameters: &[Parameter]) -> bool {
         .iter()
         .map(|p| p.name.clone())
         .any(|p| p == "body")
-        && match verb {
-            "PATCH" | "POST" | "PUT" => true,
-            _ => false,
-        }
+        && matches!(verb, "PATCH" | "POST" | "PUT")
 }
 
 #[derive(Debug)]
